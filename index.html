@@ -25,6 +25,8 @@
   legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   label { display: block; font-size: .85rem; color: var(--mute); }
+  .toggles { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: -4px 0 4px; }
+  .toggles label { display: inline-flex; gap: 5px; align-items: center; color: var(--ink); }
   select { width: 100%; padding: 6px 8px; font: inherit; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
   input[type=number] { width: 100%; padding: 6px 8px; font: inherit; border: 1px solid var(--line);
                        border-radius: 6px; background: #fff; color: var(--ink); }
@@ -38,7 +40,7 @@
   button:hover { border-color: var(--blue); }
   .hint { font-size: .82rem; color: var(--mute); margin: 6px 0 0; }
   svg { display: block; width: 100%; height: auto; }
-  .elements { max-width: 420px; margin: 0 auto; }
+  .elements { max-width: 560px; margin: 0 auto; }
   .el h3 { margin: 0; font-size: .95rem; text-align: center; }
   table { border-collapse: collapse; width: 100%; font-size: .85rem; margin-top: 4px; }
   td, th { padding: 2px 6px; border-bottom: 1px solid var(--grid); text-align: right; }
@@ -123,21 +125,34 @@
   <div class="stack">
     <section class="card">
       <h2>Plane stress state &mdash; normal stresses &amp; strains</h2>
+      <div class="toggles">
+        <label><input type="checkbox" id="tp" checked> Principal planes</label>
+        <label><input type="checkbox" id="ts" checked> Max shear planes</label>
+        <label><input type="checkbox" id="tj" checked> Joint</label>
+      </div>
       <div class="elements" id="elements"></div>
-      <p class="hint">Solid arrows: stress (blue = normal, red = shear). Dashed orange outline: deformed element,
+      <p class="hint">Green lines: principal planes; teal dash-dot lines: maximum shear planes (45° from them); purple dashed: joint. Solid arrows: stress (blue = normal, red = shear). Dashed orange outline: deformed element,
         greatly exaggerated. Shear stress and shear strain &gamma; are both <b>positive clockwise</b>.
         Strains are in &micro;&epsilon; (10<sup>&minus;6</sup>); &gamma; in &micro;rad.</p>
     </section>
 
     <section class="card">
-      <h2>Mohr's circle</h2>
+      <h2>Mohr's circle for stress</h2>
       <svg id="mohr" viewBox="0 0 680 520" role="img" aria-label="Mohr's circle"></svg>
       <div class="legend">
         <span><span class="sw" style="border-color:var(--blue)"></span>V (vertical face)</span>
         <span><span class="sw" style="border-color:var(--red)"></span>H (horizontal face)</span>
-        <span><span class="sw" style="border-color:var(--green)"></span>Principal / max shear</span>
+        <span><span class="sw" style="border-color:var(--green)"></span>Max normal (principal)</span>
+        <span><span class="sw" style="border-color:#0e8a9b"></span>Max shear</span>
         <span><span class="sw" style="border-color:#8e44ad"></span>Joint (J)</span>
       </div>
+    </section>
+
+    <section class="card">
+      <h2>Mohr's circle for strain</h2>
+      <svg id="mohrE" viewBox="0 0 680 520" role="img" aria-label="Mohr's circle for strain"></svg>
+      <p class="hint">Axes: normal strain &epsilon; (&micro;&epsilon;) and half the shear strain &gamma;/2 (&micro;rad), clockwise +.
+        Same construction as the stress circle, with V&prime;(&epsilon;<sub>x</sub>, &gamma;/2) and H&prime;(&epsilon;<sub>y</sub>, &minus;&gamma;/2).</p>
     </section>
 
     <section class="card">
@@ -210,83 +225,98 @@ function niceStep(raw) {
 }
 
 /* ---------- Mohr circle ---------- */
-function drawMohr(m) {
-  const W = Math.max(300, Math.min(680, Math.round($('mohr').getBoundingClientRect().width) || 680));
+const normPlane = a => { while (a > 90) a -= 180; while (a <= -90) a += 180; return a; };
+
+function drawCircle(id, q) {
+  const svg = $(id);
+  const W = Math.max(300, Math.min(680, Math.round(svg.getBoundingClientRect().width) || 680));
   const H = Math.round(Math.min(520, W * 0.95)), mg = W < 500 ? 30 : 46;
-  $('mohr').setAttribute('viewBox', `0 0 ${W} ${H}`);
-  const pad = 0.28 * Math.max(m.R, 1);
-  let xlo = m.c - m.R - pad, xhi = m.c + m.R + pad;
-  if (Math.abs(m.c) <= 3 * m.R + 1) { xlo = Math.min(xlo, -pad); xhi = Math.max(xhi, pad); }
-  const yr = Math.max(m.R, 1) * 1.3;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const { c, R, phi } = q;
+  const pad = 0.28 * Math.max(R, 1);
+  let xlo = c - R - pad, xhi = c + R + pad;
+  if (Math.abs(c) <= 3 * R + 1) { xlo = Math.min(xlo, -pad); xhi = Math.max(xhi, pad); }
+  const yr = Math.max(R, 1) * 1.3;
   const k = Math.min((W - 2 * mg) / (xhi - xlo), (H - 2 * mg) / (2 * yr));
   const ox = W / 2 - k * (xlo + xhi) / 2, oy = H / 2;
-  const X = s => ox + s * k, Y = t => oy - t * k;
+  const X = v => ox + v * k, Y = t => oy - t * k;
+  const green = '#1a8f5a', teal = '#0e8a9b', purple = '#8e44ad';
 
   let o = '';
   const step = niceStep((xhi - xlo) / 8);
-  // grid + ticks
-  for (let s = Math.ceil((-ox / k) / step) * step; X(s) <= W; s += step) {
-    o += line(X(s), 0, X(s), H, '#e9ecf1');
-    if (Math.abs(s) > step / 1e3) o += text(X(s), oy + 12, fmt(s, 6), { size: 10, fill: '#8a93a3' });
+  for (let v = Math.ceil((-ox / k) / step) * step; X(v) <= W; v += step) {
+    o += line(X(v), 0, X(v), H, '#e9ecf1');
+    if (Math.abs(v) > step / 1e3) o += text(X(v), oy + 12, fmt(v, 6), { size: 10, fill: '#8a93a3' });
   }
   for (let t = Math.ceil(((oy - H) / k) / step) * step; Y(t) >= 0; t += step) {
     o += line(0, Y(t), W, Y(t), '#e9ecf1');
     if (Math.abs(t) > step / 1e3) o += text(8, Y(t), fmt(t, 6), { size: 10, fill: '#8a93a3', anchor: 'start' });
   }
-  // axes
   o += arrow(10, oy, W - 6, oy, '#1d2330', 1.3);
-  o += text(W - 14, oy - 12, 'σ', { size: 14, bold: true });
+  o += text(W - 14, oy - 12, q.xl, { size: 14, bold: true });
   const ax = Math.min(Math.max(X(0), 24), W - 24);
   o += arrow(ax, H - 6, ax, 8, '#1d2330', 1.3);
-  o += text(ax + 14, 14, 'τ (clockwise +)', { size: 12, bold: true, anchor: 'start' });
+  o += text(ax + 14, 14, q.yl, { size: 12, bold: true, anchor: 'start' });
 
-  // circle
-  o += `<circle cx="${X(m.c)}" cy="${oy}" r="${Math.max(m.R * k, 0.5)}" fill="#1f6feb" fill-opacity=".06" stroke="#1d2330" stroke-width="1.6"/>`;
+  o += `<circle cx="${X(c)}" cy="${oy}" r="${Math.max(R * k, 0.5)}" fill="#1f6feb" fill-opacity=".06" stroke="#1d2330" stroke-width="1.6"/>`;
 
-  // principal and max shear
-  const green = '#1a8f5a';
-  [[m.c + m.R, 'σ₁'], [m.c - m.R, 'σ₂']].forEach(([s, n]) => {
-    o += `<circle cx="${X(s)}" cy="${oy}" r="4.5" fill="${green}"/>`;
-    o += text(X(s), oy + 28, `${n} = ${fmt(s)}`, { fill: green, bold: true });
+  // maximum normal (principal) points and their planes
+  [[c + R, q.p1, q.thP], [c - R, q.p2, q.thP + 90]].forEach(([v, n, th]) => {
+    o += `<circle cx="${X(v)}" cy="${oy}" r="4.5" fill="${green}"/>`;
+    o += text(X(v), oy + 28, `${n} = ${fmt(v)}`, { fill: green, bold: true });
+    o += text(X(v), oy + 42, `plane θ = ${fmt(normPlane(th))}°`, { fill: green, size: 10 });
   });
-  [[m.R, 'τ<tspan font-size="9" dy="3">max</tspan>'], [-m.R, '−τ<tspan font-size="9" dy="3">max</tspan>']].forEach(([t, n], i) => {
-    o += `<circle cx="${X(m.c)}" cy="${Y(t)}" r="4" fill="${green}" fill-opacity=".7"/>`;
-    o += text(X(m.c), Y(t) + (i ? 14 : -13), `${n}<tspan dy="-3"> = ${fmt(Math.abs(t))}</tspan>`, { fill: green, bold: true, size: 11 });
+  // maximum shear points and their planes
+  [[R, q.mx, q.thP + 45, -13], [-R, '−' + q.mx, q.thP - 45, 14]].forEach(([t, n, th, dy]) => {
+    o += `<circle cx="${X(c)}" cy="${Y(t)}" r="4.5" fill="${teal}"/>`;
+    o += text(X(c), Y(t) + dy * (dy < 0 ? 2 : 1), `${n} = ${fmt(R)}`, { fill: teal, bold: true, size: 11 });
+    o += text(X(c), Y(t) + dy * (dy < 0 ? 1 : 2), `plane θ = ${fmt(normPlane(th))}°`, { fill: teal, size: 10 });
   });
-  // centre
-  o += `<circle cx="${X(m.c)}" cy="${oy}" r="3" fill="#1d2330"/>`;
-  o += text(X(m.c) - 9, oy + 10, 'C', { size: 12, fill: '#1d2330', bold: true });
+  o += `<circle cx="${X(c)}" cy="${oy}" r="3" fill="#1d2330"/>`;
+  o += text(X(c) - 9, oy + 10, 'C', { size: 12, bold: true });
 
-  // arcs
   const arc = (a0, a1, r, col, label, dash) => {
     if (Math.abs(a1 - a0) < 1e-9) return '';
-    const p = a => `${X(m.c) + r * Math.cos(a)} ${oy - r * Math.sin(a)}`;
+    const pp = a => `${X(c) + r * Math.cos(a)} ${oy - r * Math.sin(a)}`;
     const am = (a0 + a1) / 2, lr = r + 17;
-    return `<path d="M ${p(a0)} A ${r} ${r} 0 ${Math.abs(a1 - a0) > Math.PI ? 1 : 0} ${a1 - a0 > 0 ? 0 : 1} ${p(a1)}"
+    return `<path d="M ${pp(a0)} A ${r} ${r} 0 ${Math.abs(a1 - a0) > Math.PI ? 1 : 0} ${a1 - a0 > 0 ? 0 : 1} ${pp(a1)}"
               fill="none" stroke="${col}" stroke-width="1.6" ${dash ? 'stroke-dasharray="4 3"' : ''}/>` +
-      text(X(m.c) + lr * Math.cos(am), oy - lr * Math.sin(am), label, { fill: col, size: 11, bold: true });
+      text(X(c) + lr * Math.cos(am), oy - lr * Math.sin(am), label, { fill: col, size: 11, bold: true });
   };
-  const rA = Math.max(m.R * k, 30);
-  o += arc(m.phi, 0, rA * 0.30, green, `2θp = ${fmt(2 * m.thP)}°`, true);
+  const rA = Math.max(R * k, 30);
+  o += arc(phi, 0, rA * 0.28, green, `2θp = ${fmt(2 * q.thP)}°`, true);
+  o += arc(phi, Math.PI / 2, rA * 0.42, teal, `2θs = ${fmt(2 * q.thP + 90)}°`, true);
 
-  // V-H diameter
-  const sV = m.sx, tVp = m.t, sH = m.sy, tHp = -m.t;
-  o += line(X(sV), Y(tVp), X(sH), Y(tHp), '#8a93a3', 1.4, 'stroke-dasharray="5 3"');
+  o += line(X(q.V[0]), Y(q.V[1]), X(q.H[0]), Y(q.H[1]), '#8a93a3', 1.4, 'stroke-dasharray="5 3"');
 
   const pt = (px, py, col, lab) => {
-    const ux = px - X(m.c), uy = py - oy, L = Math.hypot(ux, uy) || 1;
+    const ux = px - X(c), uy = py - oy, L = Math.hypot(ux, uy) || 1;
     return `<circle cx="${px}" cy="${py}" r="6" fill="${col}" stroke="#fff" stroke-width="1.5"/>` +
       text(px + ux / L * 24, py + uy / L * 18, lab, { fill: col, bold: true, size: 12 });
   };
-  // V, H
-  const J = joint(m), purple = '#8e44ad';
-  o += arc(J.a0, J.a1, rA * (J.ref === 'V' ? 0.55 : 0.7), purple, `2\u03B1 = ${fmt(2 * J.alpha)}\u00B0 ${J.sgn > 0 ? 'ccw' : 'cw'}`, false);
-  o += line(X(m.c), oy, X(J.st.sx), Y(J.st.t), purple, 2);
-  o += pt(X(J.st.sx), Y(J.st.t), purple, `J(${fmt(J.st.sx)}, ${fmt(J.st.t)})`);
-  o += pt(X(sV), Y(tVp), '#1f6feb', `V(${fmt(sV)}, ${fmt(tVp)})`);
-  o += pt(X(sH), Y(tHp), '#d1344a', `H(${fmt(sH)}, ${fmt(tHp)})`);
+  const J = q.J;
+  o += arc(J.a0, J.a1, rA * (J.ref === 'V' ? 0.58 : 0.72), purple, `2α = ${fmt(2 * J.alpha)}° ${J.sgn > 0 ? 'ccw' : 'cw'}`, false);
+  o += line(X(c), oy, X(J.pt[0]), Y(J.pt[1]), purple, 2);
+  o += pt(X(J.pt[0]), Y(J.pt[1]), purple, `J(${fmt(J.pt[0])}, ${fmt(J.pt[1])})`);
+  o += pt(X(q.V[0]), Y(q.V[1]), '#1f6feb', `V(${fmt(q.V[0])}, ${fmt(q.V[1])})`);
+  o += pt(X(q.H[0]), Y(q.H[1]), '#d1344a', `H(${fmt(q.H[0])}, ${fmt(q.H[1])})`);
+  svg.innerHTML = o;
+}
 
-  $('mohr').innerHTML = o;
+function drawMohr(m) {
+  const J = joint(m), u = 1e6;
+  drawCircle('mohr', {
+    c: m.c, R: m.R, phi: m.phi, thP: m.thP, xl: 'σ', yl: 'τ (clockwise +)',
+    p1: 'σ₁', p2: 'σ₂', mx: 'τmax',
+    V: [m.sx, m.t], H: [m.sy, -m.t], J: { ...J, pt: [J.st.sx, J.st.t] }
+  });
+  const thPe = -m.phie / 2 / D2R, a0 = m.phie + (J.ref === 'V' ? 0 : Math.PI);
+  drawCircle('mohrE', {
+    c: m.ec * u, R: m.Re * u, phi: m.phie, thP: thPe, xl: 'ε', yl: 'γ/2 (clockwise +)',
+    p1: 'ε₁', p2: 'ε₂', mx: 'γmax/2',
+    V: [m.ex * u, m.g / 2 * u], H: [m.ey * u, -m.g / 2 * u],
+    J: { ...J, a0, a1: a0 + J.sgn * 2 * J.alpha * D2R, pt: [J.st.ex * u, J.st.g / 2 * u] }
+  });
 }
 
 /* ---------- stress element ---------- */
@@ -329,11 +359,20 @@ function elementSVG(m, deg, strainScale) {
     o += sh(off, 0, 0, -sg) + sh(-off, 0, 0, sg) + sh(0, off, -sg, 0) + sh(0, -off, sg, 0);
     o += lab(off + 30, -sg * (q + 6), `τ = ${fmt(Math.abs(s.t))}`, red);
   }
-  const jn = joint(m).nAng * D2R - a, d = 78;             // joint direction in element frame
-  const jx = -Math.sin(jn), jy = Math.cos(jn);
-  const [j0x, j0y] = P(-jx * d, -jy * d), [j1x, j1y] = P(jx * d, jy * d);
-  o += line(j0x, j0y, j1x, j1y, '#8e44ad', 3, 'stroke-dasharray="8 4"');
-  o += text(j1x + jx * 16, j1y - jy * 16, 'Joint', { fill: '#8e44ad', bold: true, size: 12 });
+  // plane lines through the element centre; n = plane normal angle (deg, ccw from x)
+  const plane = (n, col, dash, label, w = 2.5, d = 74) => {
+    const r = (n + 90) * D2R - a, ux = Math.cos(r), uy = Math.sin(r);
+    const [p0x, p0y] = P(-ux * d, -uy * d), [p1x, p1y] = P(ux * d, uy * d);
+    return line(p0x, p0y, p1x, p1y, col, w, `stroke-dasharray="${dash}"`) +
+      (label ? text(p1x + ux * 18, p1y - uy * 14, label, { fill: col, bold: true, size: 11 }) : '');
+  };
+  const thPe = -m.phie / 2 / D2R;
+  if ($('tp').checked) {
+    o += plane(m.thP, '#1a8f5a', '2 0', '\u03C3\u2081 plane', 2) + plane(m.thP + 90, '#1a8f5a', '2 0', '\u03C3\u2082 plane', 2);
+    if (Math.abs(thPe - m.thP) > 1e-6) o += plane(thPe, '#1a8f5a', '2 3', '\u03B5\u2081 plane', 1.5);
+  }
+  if ($('ts').checked) o += plane(m.thP + 45, '#0e8a9b', '10 3 2 3', '', 2) + plane(m.thP - 45, '#0e8a9b', '10 3 2 3', '\u03C4max planes', 2);
+  if ($('tj').checked) o += plane(joint(m).nAng, '#8e44ad', '8 4', 'Joint', 3);
   return `<svg viewBox="0 0 ${W} ${W}">${o}</svg>`;
 }
 
@@ -348,6 +387,16 @@ function stateTable(m, deg) {
     <tr><td>γx′y′ (µrad, cw +)</td><td>${u(s.g)}</td></tr></table>`;
 }
 
+function maxTable(m) {
+  const u = v => fmt(v * 1e6, 1), thPe = -m.phie / 2 / D2R, n = normPlane;
+  const row = (q, v, th) => `<tr><td>${q}</td><td>${v}</td><td>${fmt(n(th))}\u00B0</td></tr>`;
+  return `<h3 style="margin-top:12px">Maximum values and their planes</h3><table>
+    <tr><th>Quantity</th><th>Value</th><th>Plane normal \u03B8 (ccw from x)</th></tr>
+    ${row('\u03C3\u2081 (MPa)', fmt(m.c + m.R), m.thP)}${row('\u03C3\u2082 (MPa)', fmt(m.c - m.R), m.thP + 90)}
+    ${row('\u03C4max (MPa)', fmt(m.R), m.thP + 45)}
+    ${row('\u03B5\u2081 (\u00B5\u03B5)', u(m.ec + m.Re), thPe)}${row('\u03B5\u2082 (\u00B5\u03B5)', u(m.ec - m.Re), thPe + 90)}
+    ${row('\u03B3max (\u00B5rad)', u(2 * m.Re), thPe + 45)}</table>`;
+}
 function jointTable(m) {
   const J = joint(m), s = J.st, u = v => fmt(v * 1e6, 1);
   return `<h3 style="margin-top:12px;color:#8e44ad">Joint: ${fmt(J.alpha)}\u00B0 ${J.sgn > 0 ? 'counter-clockwise' : 'clockwise'} from ${J.ref}</h3><table>
@@ -359,7 +408,7 @@ function jointTable(m) {
 function drawElements(m) {
   const big = Math.max(Math.abs(m.ec) + m.Re, 2 * m.Re, 1e-12);
   $('elements').innerHTML =
-    `<div class="el"><h3>Plane stress state (\u03B8 = 0\u00B0)</h3>${elementSVG(m, 0, 0.14 / big)}${stateTable(m, 0)}${jointTable(m)}</div>`;
+    `<div class="el"><h3>Plane stress state (\u03B8 = 0\u00B0)</h3>${elementSVG(m, 0, 0.14 / big)}${stateTable(m, 0)}${maxTable(m)}${jointTable(m)}</div>`;
 }
 
 function drawSummary(m) {
@@ -385,7 +434,7 @@ function update() {
   drawElements(m);
   drawSummary(m);
 }
-['vs', 'vt', 'hs', 'ht', 'E', 'nu', 'ja', 'jr', 'jd'].forEach(id => $(id).addEventListener('input', update));
+['vs', 'vt', 'hs', 'ht', 'E', 'nu', 'ja', 'jr', 'jd', 'tp', 'ts', 'tj'].forEach(id => $(id).addEventListener('input', update));
 $('fix').addEventListener('click', () => { $('ht').value = -num('vt'); update(); });
 window.addEventListener('resize', update);
 update();
