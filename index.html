@@ -85,7 +85,7 @@
         The average is being used.
         <button id="fix" type="button">Set H = &minus;V</button>
       </div>
-      <p class="hint">Stress in MPa. Shear &tau; is <b>positive when it turns the element clockwise</b>, and is plotted upward.</p>
+      <p class="hint">Stress in N/mm². Shear &tau; is <b>positive when it turns the element clockwise</b>, and is plotted upward.</p>
     </section>
 
     <section class="card">
@@ -182,7 +182,7 @@ function model() {
   const E = Math.max(num('E'), 1e-9), nu = num('nu');
   const c = (sx + sy) / 2, d = (sx - sy) / 2;
   const R = Math.hypot(d, t), phi = Math.atan2(t, d);
-  const Ek = E * 1000;                              // MPa
+  const Ek = E * 1000;                              // N/mm²
   const G = Ek / (2 * (1 + nu));
   const ex = (sx - nu * sy) / Ek, ey = (sy - nu * sx) / Ek, g = t / G;
   const ec = (ex + ey) / 2, de = (ex - ey) / 2;
@@ -253,7 +253,7 @@ function drawCircle(id, q) {
     if (Math.abs(t) > step / 1e3) o += text(8, Y(t), fmt(t, 6), { size: 10, fill: '#8a93a3', anchor: 'start' });
   }
   o += arrow(10, oy, W - 6, oy, '#1d2330', 1.3);
-  o += text(W - 14, oy - 12, q.xl, { size: 14, bold: true });
+  o += text(W - 8, oy - 12, q.xl, { size: 13, bold: true, anchor: 'end' });
   const ax = Math.min(Math.max(X(0), 24), W - 24);
   o += arrow(ax, H - 6, ax, 8, '#1d2330', 1.3);
   o += text(ax + 14, 14, q.yl, { size: 12, bold: true, anchor: 'start' });
@@ -306,7 +306,7 @@ function drawCircle(id, q) {
 function drawMohr(m) {
   const J = joint(m), u = 1e6;
   drawCircle('mohr', {
-    c: m.c, R: m.R, phi: m.phi, thP: m.thP, xl: 'σ', yl: 'τ (clockwise +)',
+    c: m.c, R: m.R, phi: m.phi, thP: m.thP, xl: 'σ (N/mm²)', yl: 'τ (N/mm², clockwise +)',
     p1: 'σp', p2: 'σq', mx: 'τmax',
     V: [m.sx, m.t], H: [m.sy, -m.t], J: { ...J, pt: [J.st.sx, J.st.t] }
   });
@@ -372,9 +372,9 @@ function elementSVG(m, deg, strainScale) {
 function stateTable(m, deg) {
   const s = stateAt(m, deg), u = v => fmt(v * 1e6, 1);
   return `<table>
-    <tr><td>σx′ (MPa)</td><td>${fmt(s.sx)}</td></tr>
-    <tr><td>σy′ (MPa)</td><td>${fmt(s.sy)}</td></tr>
-    <tr><td>τx′y′ (MPa, cw +)</td><td>${fmt(s.t)}</td></tr>
+    <tr><td>σx′ (N/mm²)</td><td>${fmt(s.sx)}</td></tr>
+    <tr><td>σy′ (N/mm²)</td><td>${fmt(s.sy)}</td></tr>
+    <tr><td>τx′y′ (N/mm², cw +)</td><td>${fmt(s.t)}</td></tr>
     <tr><td>εx′ (µε)</td><td>${u(s.ex)}</td></tr>
     <tr><td>εy′ (µε)</td><td>${u(s.ey)}</td></tr>
     <tr><td>γx′y′ (µrad, cw +)</td><td>${u(s.g)}</td></tr></table>`;
@@ -385,10 +385,10 @@ function maxTable(m) {
   const row = (q, v, pl, th) => `<tr><td>${q}</td><td>${v}</td><td>${pl}</td><td>${fmt(n(th))}\u00B0</td></tr>`;
   return `<h3 style="margin-top:12px">Maximum values and their planes</h3><table>
     <tr><th>Quantity</th><th>Value</th><th>Plane</th><th>Normal \u03B8 (ccw from x)</th></tr>
-    ${row('\u03C3p max principal stress (MPa)', fmt(m.c + m.R), 'P', m.thP)}
-    ${row('\u03C3q min principal stress (MPa)', fmt(m.c - m.R), 'Q', m.thP + 90)}
-    ${row('+\u03C4max (MPa)', fmt(m.R), 'S+', m.thP + 45)}
-    ${row('\u2212\u03C4max (MPa)', fmt(-m.R), 'S\u2212', m.thP - 45)}
+    ${row('\u03C3p max principal stress (N/mm²)', fmt(m.c + m.R), 'P', m.thP)}
+    ${row('\u03C3q min principal stress (N/mm²)', fmt(m.c - m.R), 'Q', m.thP + 90)}
+    ${row('+\u03C4max (N/mm²)', fmt(m.R), 'S+', m.thP + 45)}
+    ${row('\u2212\u03C4max (N/mm²)', fmt(-m.R), 'S\u2212', m.thP - 45)}
     ${row('\u03B5p max principal strain (\u00B5\u03B5)', u(m.ec + m.Re), 'P', thPe)}
     ${row('\u03B5q min principal strain (\u00B5\u03B5)', u(m.ec - m.Re), 'Q', thPe + 90)}
     ${row('+\u03B3max/2 (\u00B5rad)', u(m.Re), 'S+', thPe + 45)}
@@ -397,8 +397,8 @@ function maxTable(m) {
 function jointTable(m) {
   const J = joint(m), s = J.st, u = v => fmt(v * 1e6, 1);
   return `<h3 style="margin-top:12px;color:#8e44ad">Joint: ${fmt(J.alpha)}\u00B0 ${J.sgn > 0 ? 'counter-clockwise' : 'clockwise'} from ${J.ref}</h3><table>
-    <tr><td>Normal stress \u03C3 on joint (MPa)</td><td>${fmt(s.sx)}</td></tr>
-    <tr><td>Shear stress \u03C4 on joint (MPa, cw +)</td><td>${fmt(s.t)}</td></tr>
+    <tr><td>Normal stress \u03C3 on joint (N/mm²)</td><td>${fmt(s.sx)}</td></tr>
+    <tr><td>Shear stress \u03C4 on joint (N/mm², cw +)</td><td>${fmt(s.t)}</td></tr>
     <tr><td>Normal strain \u03B5 \u22A5 joint (\u00B5\u03B5)</td><td>${u(s.ex)}</td></tr>
     <tr><td>Shear strain \u03B3 (\u00B5rad, cw +)</td><td>${u(s.g)}</td></tr></table>`;
 }
@@ -414,23 +414,23 @@ function drawReadings(m) {
   const n = normPlane, S = m.thP;
   $('readings').innerHTML =
     g(`Joint (${fmt(J.alpha)}° ${J.sgn > 0 ? 'ccw' : 'cw'} from ${J.ref})`, '#8e44ad', [
-      ['Normal stress σ (MPa)', fmt(J.st.sx)], ['Shear stress τ (MPa, cw +)', fmt(J.st.t)],
+      ['Normal stress σ (N/mm²)', fmt(J.st.sx)], ['Shear stress τ (N/mm², cw +)', fmt(J.st.t)],
       ['Plane normal θ (deg)', fmt(n(J.nAng))]]) +
     g('Maximum / minimum normal stress', '#1a8f5a', [
-      ['σp maximum (MPa)', fmt(m.c + m.R)], ['Plane P, θ (deg)', fmt(n(S))], ['τ on plane P (MPa)', '0'],
-      ['σq minimum (MPa)', fmt(m.c - m.R)], ['Plane Q, θ (deg)', fmt(n(S + 90))], ['τ on plane Q (MPa)', '0']]) +
+      ['σp maximum (N/mm²)', fmt(m.c + m.R)], ['Plane P, θ (deg)', fmt(n(S))], ['τ on plane P (N/mm²)', '0'],
+      ['σq minimum (N/mm²)', fmt(m.c - m.R)], ['Plane Q, θ (deg)', fmt(n(S + 90))], ['τ on plane Q (N/mm²)', '0']]) +
     g('Maximum / minimum shear stress', '#0e8a9b', [
-      ['+τmax (MPa)', fmt(m.R)], ['Plane S+, θ (deg)', fmt(n(S + 45))], ['σ on plane S+ (MPa)', fmt(m.c)],
-      ['−τmax (MPa)', fmt(-m.R)], ['Plane S−, θ (deg)', fmt(n(S - 45))], ['σ on plane S− (MPa)', fmt(m.c)]]);
+      ['+τmax (N/mm²)', fmt(m.R)], ['Plane S+, θ (deg)', fmt(n(S + 45))], ['σ on plane S+ (N/mm²)', fmt(m.c)],
+      ['−τmax (N/mm²)', fmt(-m.R)], ['Plane S−, θ (deg)', fmt(n(S - 45))], ['σ on plane S− (N/mm²)', fmt(m.c)]]);
 }
 function drawSummary(m) {
   const u = v => fmt(v * 1e6, 1);
   const rows = [
-    ['Centre C (MPa)', fmt(m.c)], ['Radius R (MPa)', fmt(m.R)],
-    ['σp (MPa)', fmt(m.c + m.R)], ['σq (MPa)', fmt(m.c - m.R)],
-    ['θp to plane P (deg, ccw +)', fmt(m.thP)], ['τmax in-plane (MPa)', fmt(m.R)],
+    ['Centre C (N/mm²)', fmt(m.c)], ['Radius R (N/mm²)', fmt(m.R)],
+    ['σp (N/mm²)', fmt(m.c + m.R)], ['σq (N/mm²)', fmt(m.c - m.R)],
+    ['θp to plane P (deg, ccw +)', fmt(m.thP)], ['τmax in-plane (N/mm²)', fmt(m.R)],
     ['θs to τmax (deg, ccw +)', fmt(m.thS > 90 ? m.thS - 90 : m.thS)],
-    ['σ on τmax planes (MPa)', fmt(m.c)],
+    ['σ on τmax planes (N/mm²)', fmt(m.c)],
     ['G (GPa)', fmt(m.G / 1000)]
   ];
   $('summary').innerHTML = rows.map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join('');
