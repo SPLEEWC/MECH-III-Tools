@@ -25,6 +25,8 @@
   legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   label { display: block; font-size: .85rem; color: var(--mute); }
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 24px; }
+  .reads h3 { margin: 0 0 2px; font-size: .95rem; }
   .toggles { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: -4px 0 4px; }
   .toggles label { display: inline-flex; gap: 5px; align-items: center; color: var(--ink); }
   select { width: 100%; padding: 6px 8px; font: inherit; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
@@ -146,6 +148,11 @@
         <span><span class="sw" style="border-color:#0e8a9b"></span>Max shear</span>
         <span><span class="sw" style="border-color:#8e44ad"></span>Joint (J)</span>
       </div>
+    </section>
+
+    <section class="card">
+      <h2>Stress readings</h2>
+      <div class="reads" id="readings"></div>
     </section>
 
     <section class="card">
@@ -401,6 +408,21 @@ function drawElements(m) {
     `<div class="el"><h3>Plane stress state (\u03B8 = 0\u00B0)</h3>${elementSVG(m, 0, 0.14 / big)}${stateTable(m, 0)}${maxTable(m)}${jointTable(m)}</div>`;
 }
 
+function drawReadings(m) {
+  const J = joint(m), g = (title, color, rows) => `<div><h3 style="color:${color}">${title}</h3><table>` +
+    rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('') + '</table></div>';
+  const n = normPlane, S = m.thP;
+  $('readings').innerHTML =
+    g(`Joint (${fmt(J.alpha)}° ${J.sgn > 0 ? 'ccw' : 'cw'} from ${J.ref})`, '#8e44ad', [
+      ['Normal stress σ (MPa)', fmt(J.st.sx)], ['Shear stress τ (MPa, cw +)', fmt(J.st.t)],
+      ['Plane normal θ (deg)', fmt(n(J.nAng))]]) +
+    g('Maximum / minimum normal stress', '#1a8f5a', [
+      ['σp maximum (MPa)', fmt(m.c + m.R)], ['Plane P, θ (deg)', fmt(n(S))], ['τ on plane P (MPa)', '0'],
+      ['σq minimum (MPa)', fmt(m.c - m.R)], ['Plane Q, θ (deg)', fmt(n(S + 90))], ['τ on plane Q (MPa)', '0']]) +
+    g('Maximum / minimum shear stress', '#0e8a9b', [
+      ['+τmax (MPa)', fmt(m.R)], ['Plane S+, θ (deg)', fmt(n(S + 45))], ['σ on plane S+ (MPa)', fmt(m.c)],
+      ['−τmax (MPa)', fmt(-m.R)], ['Plane S−, θ (deg)', fmt(n(S - 45))], ['σ on plane S− (MPa)', fmt(m.c)]]);
+}
 function drawSummary(m) {
   const u = v => fmt(v * 1e6, 1);
   const rows = [
@@ -409,8 +431,6 @@ function drawSummary(m) {
     ['θp to plane P (deg, ccw +)', fmt(m.thP)], ['τmax in-plane (MPa)', fmt(m.R)],
     ['θs to τmax (deg, ccw +)', fmt(m.thS > 90 ? m.thS - 90 : m.thS)],
     ['σ on τmax planes (MPa)', fmt(m.c)],
-    ['εp (µε)', u(m.ec + m.Re)], ['εq (µε)', u(m.ec - m.Re)],
-    ['εz out-of-plane (µε)', u(m.ez)], ['γmax in-plane (µrad)', u(2 * m.Re)],
     ['G (GPa)', fmt(m.G / 1000)]
   ];
   $('summary').innerHTML = rows.map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join('');
@@ -422,6 +442,7 @@ function update() {
   $('warn').style.display = Math.abs(m.tV + m.tH) > 1e-9 ? 'block' : 'none';
   drawMohr(m);
   drawElements(m);
+  drawReadings(m);
   drawSummary(m);
 }
 ['vs', 'vt', 'hs', 'ht', 'E', 'nu', 'ja', 'jr', 'jd', 'tp', 'ts', 'tj'].forEach(id => $(id).addEventListener('input', update));
