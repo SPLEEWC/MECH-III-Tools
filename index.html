@@ -131,7 +131,7 @@
         <label><input type="checkbox" id="tj" checked> Joint</label>
       </div>
       <div class="elements" id="elements"></div>
-      <p class="hint">Green lines: principal planes; teal dash-dot lines: maximum shear planes (45° from them); purple dashed: joint. Solid arrows: stress (blue = normal, red = shear). Dashed orange outline: deformed element,
+      <p class="hint">Green lines: principal planes P and Q; teal dash-dot lines: maximum shear planes S+ and S− (45° from them); purple dashed: joint. Solid arrows: stress (blue = normal, red = shear). Dashed orange outline: deformed element,
         greatly exaggerated. Shear stress and shear strain &gamma; are both <b>positive clockwise</b>.
         Strains are in &micro;&epsilon; (10<sup>&minus;6</sup>); &gamma; in &micro;rad.</p>
     </section>
@@ -261,16 +261,16 @@ function drawCircle(id, q) {
   o += `<circle cx="${X(c)}" cy="${oy}" r="${Math.max(R * k, 0.5)}" fill="#1f6feb" fill-opacity=".06" stroke="#1d2330" stroke-width="1.6"/>`;
 
   // maximum normal (principal) points and their planes
-  [[c + R, q.p1, q.thP], [c - R, q.p2, q.thP + 90]].forEach(([v, n, th]) => {
+  [[c + R, q.p1, q.thP, 'P'], [c - R, q.p2, q.thP + 90, 'Q']].forEach(([v, n, th, pl]) => {
     o += `<circle cx="${X(v)}" cy="${oy}" r="4.5" fill="${green}"/>`;
     o += text(X(v), oy + 28, `${n} = ${fmt(v)}`, { fill: green, bold: true });
-    o += text(X(v), oy + 42, `plane θ = ${fmt(normPlane(th))}°`, { fill: green, size: 10 });
+    o += text(X(v), oy + 42, `plane ${pl}: θ = ${fmt(normPlane(th))}°`, { fill: green, size: 10 });
   });
   // maximum shear points and their planes
-  [[R, q.mx, q.thP + 45, -13], [-R, '−' + q.mx, q.thP - 45, 14]].forEach(([t, n, th, dy]) => {
+  [[R, q.mx, q.thP + 45, -13, 'S+'], [-R, '−' + q.mx, q.thP - 45, 14, 'S−']].forEach(([t, n, th, dy, pl]) => {
     o += `<circle cx="${X(c)}" cy="${Y(t)}" r="4.5" fill="${teal}"/>`;
     o += text(X(c), Y(t) + dy * (dy < 0 ? 2 : 1), `${n} = ${fmt(R)}`, { fill: teal, bold: true, size: 11 });
-    o += text(X(c), Y(t) + dy * (dy < 0 ? 1 : 2), `plane θ = ${fmt(normPlane(th))}°`, { fill: teal, size: 10 });
+    o += text(X(c), Y(t) + dy * (dy < 0 ? 1 : 2), `plane ${pl}: θ = ${fmt(normPlane(th))}°`, { fill: teal, size: 10 });
   });
   o += `<circle cx="${X(c)}" cy="${oy}" r="3" fill="#1d2330"/>`;
   o += text(X(c) - 9, oy + 10, 'C', { size: 12, bold: true });
@@ -307,13 +307,13 @@ function drawMohr(m) {
   const J = joint(m), u = 1e6;
   drawCircle('mohr', {
     c: m.c, R: m.R, phi: m.phi, thP: m.thP, xl: 'σ', yl: 'τ (clockwise +)',
-    p1: 'σ₁', p2: 'σ₂', mx: 'τmax',
+    p1: 'σp', p2: 'σq', mx: 'τmax',
     V: [m.sx, m.t], H: [m.sy, -m.t], J: { ...J, pt: [J.st.sx, J.st.t] }
   });
   const thPe = -m.phie / 2 / D2R, a0 = m.phie + (J.ref === 'V' ? 0 : Math.PI);
   drawCircle('mohrE', {
     c: m.ec * u, R: m.Re * u, phi: m.phie, thP: thPe, xl: 'ε', yl: 'γ/2 (clockwise +)',
-    p1: 'ε₁', p2: 'ε₂', mx: 'γmax/2',
+    p1: 'εp', p2: 'εq', mx: 'γmax/2',
     V: [m.ex * u, m.g / 2 * u], H: [m.ey * u, -m.g / 2 * u],
     J: { ...J, a0, a1: a0 + J.sgn * 2 * J.alpha * D2R, pt: [J.st.ex * u, J.st.g / 2 * u] }
   });
@@ -368,10 +368,10 @@ function elementSVG(m, deg, strainScale) {
   };
   const thPe = -m.phie / 2 / D2R;
   if ($('tp').checked) {
-    o += plane(m.thP, '#1a8f5a', '2 0', '\u03C3\u2081 plane', 2) + plane(m.thP + 90, '#1a8f5a', '2 0', '\u03C3\u2082 plane', 2);
-    if (Math.abs(thPe - m.thP) > 1e-6) o += plane(thPe, '#1a8f5a', '2 3', '\u03B5\u2081 plane', 1.5);
+    o += plane(m.thP, '#1a8f5a', '2 0', 'P', 2) + plane(m.thP + 90, '#1a8f5a', '2 0', 'Q', 2);
+    if (Math.abs(thPe - m.thP) > 1e-6) o += plane(thPe, '#1a8f5a', '2 3', 'P\u03B5', 1.5);
   }
-  if ($('ts').checked) o += plane(m.thP + 45, '#0e8a9b', '10 3 2 3', '', 2) + plane(m.thP - 45, '#0e8a9b', '10 3 2 3', '\u03C4max planes', 2);
+  if ($('ts').checked) o += plane(m.thP + 45, '#0e8a9b', '10 3 2 3', 'S+', 2) + plane(m.thP - 45, '#0e8a9b', '10 3 2 3', 'S\u2212', 2);
   if ($('tj').checked) o += plane(joint(m).nAng, '#8e44ad', '8 4', 'Joint', 3);
   return `<svg viewBox="0 0 ${W} ${W}">${o}</svg>`;
 }
@@ -389,13 +389,17 @@ function stateTable(m, deg) {
 
 function maxTable(m) {
   const u = v => fmt(v * 1e6, 1), thPe = -m.phie / 2 / D2R, n = normPlane;
-  const row = (q, v, th) => `<tr><td>${q}</td><td>${v}</td><td>${fmt(n(th))}\u00B0</td></tr>`;
+  const row = (q, v, pl, th) => `<tr><td>${q}</td><td>${v}</td><td>${pl}</td><td>${fmt(n(th))}\u00B0</td></tr>`;
   return `<h3 style="margin-top:12px">Maximum values and their planes</h3><table>
-    <tr><th>Quantity</th><th>Value</th><th>Plane normal \u03B8 (ccw from x)</th></tr>
-    ${row('\u03C3\u2081 (MPa)', fmt(m.c + m.R), m.thP)}${row('\u03C3\u2082 (MPa)', fmt(m.c - m.R), m.thP + 90)}
-    ${row('\u03C4max (MPa)', fmt(m.R), m.thP + 45)}
-    ${row('\u03B5\u2081 (\u00B5\u03B5)', u(m.ec + m.Re), thPe)}${row('\u03B5\u2082 (\u00B5\u03B5)', u(m.ec - m.Re), thPe + 90)}
-    ${row('\u03B3max (\u00B5rad)', u(2 * m.Re), thPe + 45)}</table>`;
+    <tr><th>Quantity</th><th>Value</th><th>Plane</th><th>Normal \u03B8 (ccw from x)</th></tr>
+    ${row('\u03C3p max principal stress (MPa)', fmt(m.c + m.R), 'P', m.thP)}
+    ${row('\u03C3q min principal stress (MPa)', fmt(m.c - m.R), 'Q', m.thP + 90)}
+    ${row('+\u03C4max (MPa)', fmt(m.R), 'S+', m.thP + 45)}
+    ${row('\u2212\u03C4max (MPa)', fmt(-m.R), 'S\u2212', m.thP - 45)}
+    ${row('\u03B5p max principal strain (\u00B5\u03B5)', u(m.ec + m.Re), 'P', thPe)}
+    ${row('\u03B5q min principal strain (\u00B5\u03B5)', u(m.ec - m.Re), 'Q', thPe + 90)}
+    ${row('+\u03B3max/2 (\u00B5rad)', u(m.Re), 'S+', thPe + 45)}
+    ${row('\u2212\u03B3max/2 (\u00B5rad)', u(-m.Re), 'S\u2212', thPe - 45)}</table>`;
 }
 function jointTable(m) {
   const J = joint(m), s = J.st, u = v => fmt(v * 1e6, 1);
@@ -415,11 +419,11 @@ function drawSummary(m) {
   const u = v => fmt(v * 1e6, 1);
   const rows = [
     ['Centre C (MPa)', fmt(m.c)], ['Radius R (MPa)', fmt(m.R)],
-    ['σ₁ (MPa)', fmt(m.c + m.R)], ['σ₂ (MPa)', fmt(m.c - m.R)],
-    ['θp to σ₁ (deg, ccw +)', fmt(m.thP)], ['τmax in-plane (MPa)', fmt(m.R)],
+    ['σp (MPa)', fmt(m.c + m.R)], ['σq (MPa)', fmt(m.c - m.R)],
+    ['θp to plane P (deg, ccw +)', fmt(m.thP)], ['τmax in-plane (MPa)', fmt(m.R)],
     ['θs to τmax (deg, ccw +)', fmt(m.thS > 90 ? m.thS - 90 : m.thS)],
     ['σ on τmax planes (MPa)', fmt(m.c)],
-    ['ε₁ (µε)', u(m.ec + m.Re)], ['ε₂ (µε)', u(m.ec - m.Re)],
+    ['εp (µε)', u(m.ec + m.Re)], ['εq (µε)', u(m.ec - m.Re)],
     ['εz out-of-plane (µε)', u(m.ez)], ['γmax in-plane (µrad)', u(2 * m.Re)],
     ['G (GPa)', fmt(m.G / 1000)]
   ];
