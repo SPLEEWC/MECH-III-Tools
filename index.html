@@ -25,6 +25,7 @@
   legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   label { display: block; font-size: .85rem; color: var(--mute); }
+  select { width: 100%; padding: 6px 8px; font: inherit; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
   input[type=number] { width: 100%; padding: 6px 8px; font: inherit; border: 1px solid var(--line);
                        border-radius: 6px; background: #fff; color: var(--ink); }
   input[type=number]:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
@@ -84,6 +85,22 @@
     </section>
 
     <section class="card">
+      <h2>Joint</h2>
+      <label>Angle from reference plane (degrees)
+        <input type="number" id="ja" value="30" min="0" max="180" step="any">
+      </label>
+      <div class="row" style="margin-top:8px">
+        <label>Reference plane
+          <select id="jr"><option value="V">V (vertical)</option><option value="H">H (horizontal)</option></select>
+        </label>
+        <label>Direction of joint
+          <select id="jd"><option value="ccw">Counter-clockwise</option><option value="cw">Clockwise</option></select>
+        </label>
+      </div>
+      <p class="hint">The joint plane is the reference plane rotated by the angle in the chosen direction. Its stresses are the point rotated by 2&times;angle the same way on the circle.</p>
+    </section>
+
+    <section class="card">
       <h2>Material (for strains)</h2>
       <div class="row">
         <label>E (GPa)<input type="number" id="E" value="200" min="0" step="any"></label>
@@ -119,6 +136,7 @@
         <span><span class="sw" style="border-color:var(--blue)"></span>V (vertical face)</span>
         <span><span class="sw" style="border-color:var(--red)"></span>H (horizontal face)</span>
         <span><span class="sw" style="border-color:var(--green)"></span>Principal / max shear</span>
+        <span><span class="sw" style="border-color:#8e44ad"></span>Joint (J)</span>
       </div>
     </section>
 
@@ -162,6 +180,14 @@ function stateAt(m, deg) {
   const a = m.phi + 2 * deg * D2R, ae = m.phie + 2 * deg * D2R;
   return { deg, sx: m.c + m.R * Math.cos(a), sy: m.c - m.R * Math.cos(a), t: m.R * Math.sin(a),
            ex: m.ec + m.Re * Math.cos(ae), ey: m.ec - m.Re * Math.cos(ae), g: 2 * m.Re * Math.sin(ae) };
+}
+
+function joint(m) {
+  const alpha = Math.max(0, Math.min(180, num('ja')));
+  const ref = $('jr').value, sgn = $('jd').value === 'cw' ? -1 : 1;
+  const nAng = (ref === 'V' ? 0 : 90) + sgn * alpha;      // normal of joint plane, deg ccw from x
+  const a0 = m.phi + (ref === 'V' ? 0 : Math.PI);
+  return { alpha, ref, sgn, nAng, a0, a1: a0 + sgn * 2 * alpha * D2R, st: stateAt(m, nAng) };
 }
 
 /* ---------- svg helpers ---------- */
@@ -253,6 +279,10 @@ function drawMohr(m) {
       text(px + ux / L * 24, py + uy / L * 18, lab, { fill: col, bold: true, size: 12 });
   };
   // V, H
+  const J = joint(m), purple = '#8e44ad';
+  o += arc(J.a0, J.a1, rA * (J.ref === 'V' ? 0.55 : 0.7), purple, `2\u03B1 = ${fmt(2 * J.alpha)}\u00B0 ${J.sgn > 0 ? 'ccw' : 'cw'}`, false);
+  o += line(X(m.c), oy, X(J.st.sx), Y(J.st.t), purple, 2);
+  o += pt(X(J.st.sx), Y(J.st.t), purple, `J(${fmt(J.st.sx)}, ${fmt(J.st.t)})`);
   o += pt(X(sV), Y(tVp), '#1f6feb', `V(${fmt(sV)}, ${fmt(tVp)})`);
   o += pt(X(sH), Y(tHp), '#d1344a', `H(${fmt(sH)}, ${fmt(tHp)})`);
 
@@ -299,6 +329,11 @@ function elementSVG(m, deg, strainScale) {
     o += sh(off, 0, 0, -sg) + sh(-off, 0, 0, sg) + sh(0, off, -sg, 0) + sh(0, -off, sg, 0);
     o += lab(off + 30, -sg * (q + 6), `τ = ${fmt(Math.abs(s.t))}`, red);
   }
+  const jn = joint(m).nAng * D2R - a, d = 78;             // joint direction in element frame
+  const jx = -Math.sin(jn), jy = Math.cos(jn);
+  const [j0x, j0y] = P(-jx * d, -jy * d), [j1x, j1y] = P(jx * d, jy * d);
+  o += line(j0x, j0y, j1x, j1y, '#8e44ad', 3, 'stroke-dasharray="8 4"');
+  o += text(j1x + jx * 16, j1y - jy * 16, 'Joint', { fill: '#8e44ad', bold: true, size: 12 });
   return `<svg viewBox="0 0 ${W} ${W}">${o}</svg>`;
 }
 
@@ -313,10 +348,18 @@ function stateTable(m, deg) {
     <tr><td>γx′y′ (µrad, cw +)</td><td>${u(s.g)}</td></tr></table>`;
 }
 
+function jointTable(m) {
+  const J = joint(m), s = J.st, u = v => fmt(v * 1e6, 1);
+  return `<h3 style="margin-top:12px;color:#8e44ad">Joint: ${fmt(J.alpha)}\u00B0 ${J.sgn > 0 ? 'counter-clockwise' : 'clockwise'} from ${J.ref}</h3><table>
+    <tr><td>Normal stress \u03C3 on joint (MPa)</td><td>${fmt(s.sx)}</td></tr>
+    <tr><td>Shear stress \u03C4 on joint (MPa, cw +)</td><td>${fmt(s.t)}</td></tr>
+    <tr><td>Normal strain \u03B5 \u22A5 joint (\u00B5\u03B5)</td><td>${u(s.ex)}</td></tr>
+    <tr><td>Shear strain \u03B3 (\u00B5rad, cw +)</td><td>${u(s.g)}</td></tr></table>`;
+}
 function drawElements(m) {
   const big = Math.max(Math.abs(m.ec) + m.Re, 2 * m.Re, 1e-12);
   $('elements').innerHTML =
-    `<div class="el"><h3>Plane stress state (\u03B8 = 0\u00B0)</h3>${elementSVG(m, 0, 0.14 / big)}${stateTable(m, 0)}</div>`;
+    `<div class="el"><h3>Plane stress state (\u03B8 = 0\u00B0)</h3>${elementSVG(m, 0, 0.14 / big)}${stateTable(m, 0)}${jointTable(m)}</div>`;
 }
 
 function drawSummary(m) {
@@ -342,7 +385,7 @@ function update() {
   drawElements(m);
   drawSummary(m);
 }
-['vs', 'vt', 'hs', 'ht', 'E', 'nu'].forEach(id => $(id).addEventListener('input', update));
+['vs', 'vt', 'hs', 'ht', 'E', 'nu', 'ja', 'jr', 'jd'].forEach(id => $(id).addEventListener('input', update));
 $('fix').addEventListener('click', () => { $('ht').value = -num('vt'); update(); });
 window.addEventListener('resize', update);
 update();
