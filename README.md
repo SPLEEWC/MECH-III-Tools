@@ -3,8 +3,8 @@
 Interactive single-page tool (plain HTML/JS, no build step).
 
 - Input the **V** (vertical face) and **H** (horizontal face) coordinates (σ, τ).
-- Draws Mohr's circle, principal stresses, max shear, and a plane at any angle θ.
-- Shows 2D plane stress elements (given / rotated / principal) with normal stresses and strains.
+- Draws Mohr's circle, principal stresses and max shear.
+- Shows 2D plane stress elements (at 0°) with normal stresses and strains.
 - Input E and ν to get ε, γ. **Shear stress and shear strain are positive clockwise.**
 
 ## Host on GitHub Pages

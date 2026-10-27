@@ -37,8 +37,7 @@
   button:hover { border-color: var(--blue); }
   .hint { font-size: .82rem; color: var(--mute); margin: 6px 0 0; }
   svg { display: block; width: 100%; height: auto; }
-  .elements { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-  @media (max-width: 1050px) { .elements { grid-template-columns: 1fr; } }
+  .elements { max-width: 420px; margin: 0 auto; }
   .el h3 { margin: 0; font-size: .95rem; text-align: center; }
   table { border-collapse: collapse; width: 100%; font-size: .85rem; margin-top: 4px; }
   td, th { padding: 2px 6px; border-bottom: 1px solid var(--grid); text-align: right; }
@@ -55,7 +54,7 @@
 <body>
 <header>
   <h1>Mohr's Circle &mdash; 2D Plane Stress</h1>
-  <p class="sub">Enter the coordinates of points V and H, then explore the stresses and strains on any plane.</p>
+  <p class="sub">Enter the coordinates of points V and H, then see the plane stress state with its normal stresses and strains.</p>
 </header>
 
 <main>
@@ -94,15 +93,6 @@
     </section>
 
     <section class="card">
-      <h2>Rotate the element</h2>
-      <label>&theta; (degrees, counter-clockwise +)
-        <input type="number" id="th" value="30" step="any">
-      </label>
-      <input type="range" id="thr" min="-90" max="90" step="1" value="30">
-      <p class="hint">Rotating the element by &theta; rotates the radius on the circle by 2&theta; in the same direction.</p>
-    </section>
-
-    <section class="card">
       <h2>How to read it</h2>
       <ol>
         <li>Plot V(&sigma;<sub>V</sub>, &tau;<sub>V</sub>) and H(&sigma;<sub>H</sub>, &tau;<sub>H</sub>); join them &mdash; that line is a diameter.</li>
@@ -121,7 +111,6 @@
         <span><span class="sw" style="border-color:var(--blue)"></span>V (vertical face)</span>
         <span><span class="sw" style="border-color:var(--red)"></span>H (horizontal face)</span>
         <span><span class="sw" style="border-color:var(--green)"></span>Principal / max shear</span>
-        <span><span class="sw" style="border-color:var(--orange)"></span>Plane at &theta;</span>
       </div>
     </section>
 
@@ -131,7 +120,7 @@
     </section>
 
     <section class="card">
-      <h2>Plane stress element &mdash; normal stresses &amp; strains</h2>
+      <h2>Plane stress state &mdash; normal stresses &amp; strains</h2>
       <div class="elements" id="elements"></div>
       <p class="hint">Solid arrows: stress (blue = normal, red = shear). Dashed orange outline: deformed element,
         greatly exaggerated. Shear stress and shear strain &gamma; are both <b>positive clockwise</b>.
@@ -195,7 +184,7 @@ function niceStep(raw) {
 }
 
 /* ---------- Mohr circle ---------- */
-function drawMohr(m, theta) {
+function drawMohr(m) {
   const W = 680, H = 520, mg = 46;
   const pad = 0.28 * Math.max(m.R, 1);
   let xlo = m.c - m.R - pad, xhi = m.c + m.R + pad;
@@ -256,18 +245,11 @@ function drawMohr(m, theta) {
   const sV = m.sx, tVp = m.t, sH = m.sy, tHp = -m.t;
   o += line(X(sV), Y(tVp), X(sH), Y(tHp), '#8a93a3', 1.4, 'stroke-dasharray="5 3"');
 
-  // plane at theta
-  const st = stateAt(m, theta), orange = '#e08a00';
-  const a = m.phi + 2 * theta * D2R;
-  o += arc(m.phi, a, rA * 0.5, orange, `2θ = ${fmt(2 * theta)}°`, false);
-  o += line(X(st.sx), Y(st.t), X(st.sy), Y(-st.t), orange, 2);
   const pt = (px, py, col, lab) => {
     const ux = px - X(m.c), uy = py - oy, L = Math.hypot(ux, uy) || 1;
     return `<circle cx="${px}" cy="${py}" r="6" fill="${col}" stroke="#fff" stroke-width="1.5"/>` +
       text(px + ux / L * 24, py + uy / L * 18, lab, { fill: col, bold: true, size: 12 });
   };
-  o += pt(X(st.sx), Y(st.t), orange, `X′(${fmt(st.sx)}, ${fmt(st.t)})`);
-  o += pt(X(st.sy), Y(-st.t), orange, `Y′(${fmt(st.sy)}, ${fmt(-st.t)})`);
   // V, H
   o += pt(X(sV), Y(tVp), '#1f6feb', `V(${fmt(sV)}, ${fmt(tVp)})`);
   o += pt(X(sH), Y(tHp), '#d1344a', `H(${fmt(sH)}, ${fmt(tHp)})`);
@@ -329,13 +311,10 @@ function stateTable(m, deg) {
     <tr><td>γx′y′ (µrad, cw +)</td><td>${u(s.g)}</td></tr></table>`;
 }
 
-function drawElements(m, theta) {
+function drawElements(m) {
   const big = Math.max(Math.abs(m.ec) + m.Re, 2 * m.Re, 1e-12);
-  const scale = 0.14 / big;
-  const items = [['Given (θ = 0°)', 0], [`Rotated (θ = ${fmt(theta, 1)}°)`, theta],
-                 [`Principal (θp = ${fmt(m.thP, 2)}°)`, m.thP]];
-  $('elements').innerHTML = items.map(([title, d]) =>
-    `<div class="el"><h3>${title}</h3>${elementSVG(m, d, scale)}${stateTable(m, d)}</div>`).join('');
+  $('elements').innerHTML =
+    `<div class="el"><h3>Plane stress state (\u03B8 = 0\u00B0)</h3>${elementSVG(m, 0, 0.14 / big)}${stateTable(m, 0)}</div>`;
 }
 
 function drawSummary(m) {
@@ -356,15 +335,12 @@ function drawSummary(m) {
 /* ---------- wiring ---------- */
 function update() {
   const m = model();
-  const theta = num('th');
   $('warn').style.display = Math.abs(m.tV + m.tH) > 1e-9 ? 'block' : 'none';
-  drawMohr(m, theta);
-  drawElements(m, theta);
+  drawMohr(m);
+  drawElements(m);
   drawSummary(m);
 }
 ['vs', 'vt', 'hs', 'ht', 'E', 'nu'].forEach(id => $(id).addEventListener('input', update));
-$('th').addEventListener('input', () => { $('thr').value = Math.max(-90, Math.min(90, num('th'))); update(); });
-$('thr').addEventListener('input', () => { $('th').value = $('thr').value; update(); });
 $('fix').addEventListener('click', () => { $('ht').value = -num('vt'); update(); });
 update();
 </script>
