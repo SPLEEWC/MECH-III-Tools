@@ -137,7 +137,7 @@
     </section>
 
     <section class="card">
-      <h2>Mohr's circle for stress</h2>
+      <h2>Mohr's circle</h2>
       <svg id="mohr" viewBox="0 0 680 520" role="img" aria-label="Mohr's circle"></svg>
       <div class="legend">
         <span><span class="sw" style="border-color:var(--blue)"></span>V (vertical face)</span>
@@ -146,13 +146,6 @@
         <span><span class="sw" style="border-color:#0e8a9b"></span>Max shear</span>
         <span><span class="sw" style="border-color:#8e44ad"></span>Joint (J)</span>
       </div>
-    </section>
-
-    <section class="card">
-      <h2>Mohr's circle for strain</h2>
-      <svg id="mohrE" viewBox="0 0 680 520" role="img" aria-label="Mohr's circle for strain"></svg>
-      <p class="hint">Axes: normal strain &epsilon; (&micro;&epsilon;) and half the shear strain &gamma;/2 (&micro;rad), clockwise +.
-        Same construction as the stress circle, with V&prime;(&epsilon;<sub>x</sub>, &gamma;/2) and H&prime;(&epsilon;<sub>y</sub>, &minus;&gamma;/2).</p>
     </section>
 
     <section class="card">
@@ -309,13 +302,6 @@ function drawMohr(m) {
     c: m.c, R: m.R, phi: m.phi, thP: m.thP, xl: 'σ', yl: 'τ (clockwise +)',
     p1: 'σp', p2: 'σq', mx: 'τmax',
     V: [m.sx, m.t], H: [m.sy, -m.t], J: { ...J, pt: [J.st.sx, J.st.t] }
-  });
-  const thPe = -m.phie / 2 / D2R, a0 = m.phie + (J.ref === 'V' ? 0 : Math.PI);
-  drawCircle('mohrE', {
-    c: m.ec * u, R: m.Re * u, phi: m.phie, thP: thPe, xl: 'ε', yl: 'γ/2 (clockwise +)',
-    p1: 'εp', p2: 'εq', mx: 'γmax/2',
-    V: [m.ex * u, m.g / 2 * u], H: [m.ey * u, -m.g / 2 * u],
-    J: { ...J, a0, a1: a0 + J.sgn * 2 * J.alpha * D2R, pt: [J.st.ex * u, J.st.g / 2 * u] }
   });
 }
 
