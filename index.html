@@ -185,7 +185,9 @@ function niceStep(raw) {
 
 /* ---------- Mohr circle ---------- */
 function drawMohr(m) {
-  const W = 680, H = 520, mg = 46;
+  const W = Math.max(300, Math.min(680, Math.round($('mohr').getBoundingClientRect().width) || 680));
+  const H = Math.round(Math.min(520, W * 0.95)), mg = W < 500 ? 30 : 46;
+  $('mohr').setAttribute('viewBox', `0 0 ${W} ${H}`);
   const pad = 0.28 * Math.max(m.R, 1);
   let xlo = m.c - m.R - pad, xhi = m.c + m.R + pad;
   if (Math.abs(m.c) <= 3 * m.R + 1) { xlo = Math.min(xlo, -pad); xhi = Math.max(xhi, pad); }
@@ -342,6 +344,7 @@ function update() {
 }
 ['vs', 'vt', 'hs', 'ht', 'E', 'nu'].forEach(id => $(id).addEventListener('input', update));
 $('fix').addEventListener('click', () => { $('ht').value = -num('vt'); update(); });
+window.addEventListener('resize', update);
 update();
 </script>
 </body>
