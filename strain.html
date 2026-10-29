@@ -82,10 +82,10 @@
         <select id="rs">
           <option value="rect">Rectangle (0&deg;, 45&deg;, 90&deg;)</option>
           <option value="delta">Delta &mdash; triangle (0&deg;, 60&deg;, 120&deg;)</option>
-          <option value="star">Star &mdash; 1 vertical, others 120&deg; apart (90&deg;, 210&deg;, 330&deg;)</option>
+          <option value="star">Star (90&deg;, 210&deg;, 330&deg;)</option>
         </select>
       </fieldset>
-      <svg id="rosette" viewBox="0 6 240 130" role="img" aria-label="Rosette layout" style="max-width:260px;margin:0 auto 8px"></svg>
+      <svg id="rosette" viewBox="0 6 240 130" role="img" aria-label="Rosette layout" style="max-width:260px;margin:6px auto 8px"></svg>
       <fieldset>
         <legend>2. Enter the gauge strains (&micro;&epsilon;)</legend>
         <div class="row3">
@@ -519,28 +519,46 @@ function drawMc(m) {
 
 /* ---------- rosette diagram ---------- */
 function drawRosette(m) {
-  const cx = 120, cy = 80, L = 62, o0 = '#8a93a3', or = '#e08a00', lc = '#b36b00', kind = $('rs').value;
+  const cx = 120, cy = 92, L = 58, o0 = '#8a93a3', or = '#e08a00', lc = '#b36b00', kind = $('rs').value;
   const side = (x1, y1, x2, y2) => line(x1, y1, x2, y2, or, 5, 'stroke-linecap="round" opacity=".6"');
+  const svg = $('rosette');
+  svg.setAttribute('viewBox', kind === 'star' ? '0 0 380 160' : '0 0 240 150');
+  svg.style.maxWidth = kind === 'star' ? '100%' : '260px';
   let o = '';
   if (kind === 'delta') {
     // equilateral triangle: base = gauge 1 (0°), left side = gauge 2 (60°), right side = gauge 3 (120°)
-    const by = 112, h = L * Math.sin(Math.PI / 3), P0 = [cx - L / 2, by], P1 = [cx + L / 2, by], P2 = [cx, by - h];
+    const by = 118, h = L * Math.sin(Math.PI / 3), P0 = [cx - L / 2, by], P1 = [cx + L / 2, by], P2 = [cx, by - h];
     o += arrow(P0[0] - 14, by, P1[0] + 44, by, o0, 1.2) + text(P1[0] + 50, by, 'x', { size: 11, fill: o0 });
     o += side(...P0, ...P1) + side(...P0, ...P2) + side(...P1, ...P2);
     o += text(cx, by + 14, `1 (${fmt(m.th[0] / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
     o += text(P0[0] + (P2[0] - P0[0]) / 2 - 24, by - h / 2, `2 (${fmt(m.th[1] / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
     o += text(P1[0] + (P2[0] - P1[0]) / 2 + 26, by - h / 2, `3 (${fmt(m.th[2] / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
     o += text(cx, by - h - 10, '60° each corner', { fill: o0, size: 10 });
+  } else if (kind === 'star') {
+    // original star (gauge 1 along x) beside the same star rotated 90° so that gauge 1 is vertical (used here)
+    const star = (x, y, ths, col, op, axis) => {
+      let q = axis ? arrow(x - 8, y, x + L * 0.5 + 26, y, o0, 1) + text(x + L * 0.5 + 32, y, 'x', { size: 10, fill: o0 }) : '';
+      ths.forEach((t, i) => {
+        const ux = Math.cos(t), uy = -Math.sin(t);
+        q += line(x, y, x + ux * L * 0.78, y + uy * L * 0.78, col, 5, `stroke-linecap="round" opacity="${op}"`);
+        q += text(x + ux * (L * 0.78 + 20), y + uy * (L * 0.78 + 12), `${i + 1} (${fmt(((t / D2R) % 360 + 360) % 360, 0)}°)`, { fill: lc, bold: true, size: 11 });
+      });
+      return q + `<circle cx="${x}" cy="${y}" r="3" fill="#1d2330"/>`;
+    };
+    const rot = m.th.map(t => t - Math.PI / 2);          // original star: gauge 1 along x
+    o += star(66, cy, rot, '#8a93a3', '.55', false) + star(292, cy, m.th, or, '.6', true);
+    o += arrow(158, cy - 4, 210, cy - 4, '#8e44ad', 1.6) + text(184, cy - 16, 'rotate 90°', { size: 10, fill: '#8e44ad' });
+    o += text(66, 152, 'original star', { size: 10.5, fill: o0 }) + text(292, 152, 'rotated: gauge 1 vertical (used)', { size: 10.5, fill: lc, bold: true });
   } else {
     o += arrow(cx - 10, cy, cx + L + 38, cy, o0, 1.2) + text(cx + L + 44, cy, 'x', { size: 11, fill: o0 });
     m.th.forEach((t, i) => {
       const ux = Math.cos(t), uy = -Math.sin(t);
       o += side(cx, cy, cx + ux * L, cy + uy * L);
-      o += text(cx + ux * (L + 20), cy + uy * (L + 14) - (i === 0 && kind === 'rect' ? 8 : 0), `${i + 1} (${fmt(t / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
+      o += text(cx + ux * (L + 20), cy + uy * (L + 14) - (i === 0 ? 8 : 0), `${i + 1} (${fmt(t / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
     });
     o += `<circle cx="${cx}" cy="${cy}" r="3" fill="#1d2330"/>`;
   }
-  $('rosette').innerHTML = o;
+  svg.innerHTML = o;
 }
 function drawDerived(m) {
   const u = v => fmt(v * 1e6, 1);
