@@ -17,7 +17,8 @@ Interactive single-page tools (plain HTML/JS, no build step).
 
 ## Mohr's circle – strain
 
-- Input the **V** and **H** coordinates (ε, γ/2) in µε.
+- Choose a strain rosette (**Rectangle** 0°/45°/90°, **Delta** 0°/60°/120°, **Star** 0°/60°/120°) and enter gauge strains ε1, ε2, ε3 in µε.
+- εx, εy, γxy and the V/H points are derived from the three readings; the gauges are marked on the circle.
 - Draws Mohr's circle, principal strains and max shear strain.
 - Shows the deformed element, and the corresponding stresses from E and ν (plane stress).
 

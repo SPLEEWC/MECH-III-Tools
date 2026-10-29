@@ -26,6 +26,7 @@
   .stack > .card + .card { margin-top: 16px; }
   fieldset { border: 0; padding: 0; margin: 0 0 12px; }
   legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
+  .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   label { display: block; font-size: .85rem; color: var(--mute); }
   .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 24px; }
@@ -63,33 +64,32 @@
 <header>
   <p class="nav"><a href="index.html">&larr; All tools</a> &middot; <a href="stress.html">Mohr's circle for stress</a></p>
   <h1>Mohr's Circle &mdash; 2D Plane Strain</h1>
-  <p class="sub">Enter the coordinates of points V and H (&epsilon;, &gamma;/2), then see the strain state with its principal and maximum shear strains, and the corresponding stresses.</p>
+  <p class="sub">Choose a strain rosette and enter its three gauge readings, then see the strain state with its principal and maximum shear strains, and the corresponding stresses.</p>
 </header>
 
 <main>
   <div class="stack">
     <section class="card">
-      <h2>Inputs</h2>
+      <h2>Strain rosette</h2>
       <fieldset>
-        <legend>V point &mdash; vertical face</legend>
-        <div class="row">
-          <label>&epsilon; (normal, &micro;&epsilon;)<input type="number" id="vs" value="600" step="any"></label>
-          <label>&gamma;/2 (shear, &micro;rad/2)<input type="number" id="vt" value="300" step="any"></label>
+        <legend>1. Choose the rosette</legend>
+        <select id="rs">
+          <option value="rect">Rectangle (0&deg;, 45&deg;, 90&deg;)</option>
+          <option value="delta">Delta (0&deg;, 60&deg;, 120&deg;)</option>
+          <option value="star">Star (0&deg;, 60&deg;, 120&deg;)</option>
+        </select>
+      </fieldset>
+      <svg id="rosette" viewBox="0 0 240 150" role="img" aria-label="Rosette layout" style="max-width:260px;margin:0 auto 8px"></svg>
+      <fieldset>
+        <legend>2. Enter the gauge strains (&micro;&epsilon;)</legend>
+        <div class="row3">
+          <label>&epsilon;<sub>1</sub><input type="number" id="g1" value="600" step="any"></label>
+          <label>&epsilon;<sub>2</sub><input type="number" id="g2" value="100" step="any"></label>
+          <label>&epsilon;<sub>3</sub><input type="number" id="g3" value="200" step="any"></label>
         </div>
       </fieldset>
-      <fieldset>
-        <legend>H point &mdash; horizontal face</legend>
-        <div class="row">
-          <label>&epsilon; (normal, &micro;&epsilon;)<input type="number" id="hs" value="200" step="any"></label>
-          <label>&gamma;/2 (shear, &micro;rad/2)<input type="number" id="ht" value="-300" step="any"></label>
-        </div>
-      </fieldset>
-      <div class="warn" id="warn">
-        Shear strain on V and H must be equal in size and opposite in sign (&gamma;<sub>H</sub>/2 = &minus;&gamma;<sub>V</sub>/2).
-        The average is being used.
-        <button id="fix" type="button">Set H = &minus;V</button>
-      </div>
-      <p class="hint">Strain in &micro;&epsilon; (10<sup>&minus;6</sup>). Shear strain &gamma; is <b>positive clockwise</b>; the vertical axis plots &gamma;/2, upward.</p>
+      <p class="hint">Gauge 1 lies along x; gauge angles are measured counter-clockwise from x. Strain in &micro;&epsilon; (10<sup>&minus;6</sup>). Shear strain &gamma; is <b>positive clockwise</b>; the vertical axis plots &gamma;/2, upward.</p>
+      <div class="res" id="vh" style="margin-top:6px"></div>
     </section>
 
     <section class="card">
@@ -120,7 +120,7 @@
     <section class="card">
       <h2>How to read it</h2>
       <ol>
-        <li>Plot V(&epsilon;<sub>V</sub>, &gamma;<sub>V</sub>/2) and H(&epsilon;<sub>H</sub>, &gamma;<sub>H</sub>/2); join them &mdash; that line is a diameter.</li>
+        <li>The three gauge readings fix the circle: &epsilon;<sub>&theta;</sub> = C + R&middot;cos(2&theta; + &phi;) fitted at each gauge angle. V (&epsilon;<sub>x</sub>, &gamma;/2) and H (&epsilon;<sub>y</sub>, &minus;&gamma;/2) are the ends of a diameter.</li>
         <li>Centre C = (&epsilon;<sub>V</sub>+&epsilon;<sub>H</sub>)/2, radius R = distance C&ndash;V.</li>
         <li>Principal strains &epsilon;<sub>1,2</sub> = C &plusmn; R (where &gamma;/2 = 0).</li>
         <li>Max in-plane shear strain &gamma;<sub>max</sub> = 2R, at &epsilon; = C.</li>
@@ -150,6 +150,7 @@
         <span><span class="sw" style="border-color:var(--green)"></span>Max normal strain (principal)</span>
         <span><span class="sw" style="border-color:#0e8a9b"></span>Max shear strain</span>
         <span><span class="sw" style="border-color:#8e44ad"></span>Joint (J)</span>
+        <span><span class="sw" style="border-color:#e08a00"></span>Rosette gauges 1, 2, 3</span>
       </div>
     </section>
 
@@ -178,11 +179,17 @@ function fmt(x, d = 2) {
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 
 /* ---------- model ---------- */
+const ROSETTES = { rect: [0, 45, 90], delta: [0, 60, 120], star: [0, 60, 120] };
+
 function model() {
   const u = 1e-6;                                   // inputs are in µε
-  const ex = num('vs') * u, ey = num('hs') * u;
-  const tV = num('vt') * u, tH = num('ht') * u;     // γ/2 on V and H faces, clockwise +
-  const e = (tV - tH) / 2;                          // γ/2 on the vertical face
+  const th = ROSETTES[$('rs').value].map(a => a * D2R), r = [num('g1') * u, num('g2') * u, num('g3') * u];
+  // ε(θ) = ec + de·cos2θ − e·sin2θ at each gauge: solve the 3×3 for (ec, de, e)
+  const A = th.map(t => [1, Math.cos(2 * t), -Math.sin(2 * t)]);
+  const det3 = M => M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0]) + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]);
+  const D = det3(A), sol = [0, 1, 2].map(j => det3(A.map((row, i) => row.map((v, k) => k === j ? r[i] : v))) / D);
+  const [ec0, de0, e] = sol;                        // e = γ/2 on the vertical face, clockwise +
+  const ex = ec0 + de0, ey = ec0 - de0, tV = e, tH = -e;
   const E = Math.max(num('E'), 1e-9), nu = num('nu');
   const Ek = E * 1000;                              // N/mm²
   const G = Ek / (2 * (1 + nu));
@@ -193,7 +200,7 @@ function model() {
   const sx = Ek / (1 - nu * nu) * (ex + nu * ey), sy = Ek / (1 - nu * nu) * (ey + nu * ex), t = G * g;
   const c = (sx + sy) / 2, R = 2 * G * Re, phi = phie;
   const thP = -phi / 2 / D2R;                       // principal angle, deg (ccw +)
-  return { sx, sy, t, e, tV, tH, E, nu, G, c, R, phi, ex, ey, g, ec, Re, phie,
+  return { th, r, sx, sy, t, e, tV, tH, E, nu, G, c, R, phi, ex, ey, g, ec, Re, phie,
            ez: -nu * (sx + sy) / Ek, thP, thS: thP + 45 };
 }
 function stateAt(m, deg) {
@@ -300,6 +307,10 @@ function drawCircle(id, q) {
       text(px + ux / L * 24, py + uy / L * 18, lab, { fill: col, bold: true, size: 12 });
   };
   const J = q.J;
+  (q.G || []).forEach((g, i) => {
+    o += `<circle cx="${X(g[0])}" cy="${Y(g[1])}" r="4" fill="#fff" stroke="#e08a00" stroke-width="2"/>` +
+      text(X(g[0]) + 10, Y(g[1]) - 9, `${i + 1}`, { fill: '#e08a00', bold: true, size: 12 });
+  });
   o += arc(J.a0, J.a1, rA * (J.ref === 'V' ? 0.58 : 0.72), purple, `2α = ${fmt(2 * J.alpha)}° ${J.sgn > 0 ? 'ccw' : 'cw'}`, false);
   o += line(X(c), oy, X(J.pt[0]), Y(J.pt[1]), purple, 2);
   o += pt(X(J.pt[0]), Y(J.pt[1]), purple, `J(${fmt(J.pt[0])}, ${fmt(J.pt[1])})`);
@@ -313,6 +324,7 @@ function drawMohr(m) {
   drawCircle('mohr', {
     c: m.ec * u, R: m.Re * u, phi: m.phie, thP: m.thP, xl: 'ε (µε)', yl: 'γ/2 (µrad/2, clockwise +)',
     p1: 'εp', p2: 'εq', mx: 'γmax/2',
+    G: m.th.map(t => { const g = stateAt(m, t / D2R); return [g.ex * u, g.g / 2 * u]; }),
     V: [m.ex * u, m.e * u], H: [m.ey * u, -m.e * u], J: { ...J, pt: [st.ex * u, st.g / 2 * u] }
   });
 }
@@ -444,17 +456,35 @@ function drawSummary(m) {
   $('summary').innerHTML = rows.map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join('');
 }
 
+/* ---------- rosette diagram ---------- */
+function drawRosette(m) {
+  const cx = 120, cy = 80, L = 62, o0 = '#8a93a3';
+  let o = arrow(cx - 10, cy, cx + L + 38, cy, o0, 1.2) + text(cx + L + 44, cy, 'x', { size: 11, fill: o0 });
+  m.th.forEach((t, i) => {
+    const ux = Math.cos(t), uy = -Math.sin(t);
+    o += line(cx, cy, cx + ux * L, cy + uy * L, '#e08a00', 5, 'stroke-linecap="round" opacity=".55"');
+    o += text(cx + ux * (L + 14), cy + uy * (L + 14) - (i === 0 ? 8 : 0), `${i + 1} (${fmt(t / D2R, 0)}°)`, { fill: '#b36b00', bold: true, size: 11 });
+  });
+  o += `<circle cx="${cx}" cy="${cy}" r="3" fill="#1d2330"/>`;
+  $('rosette').innerHTML = o;
+}
+function drawDerived(m) {
+  const u = v => fmt(v * 1e6, 1);
+  $('vh').innerHTML = [['εx (µε)', u(m.ex)], ['εy (µε)', u(m.ey)], ['γxy (µrad, cw +)', u(m.g)]]
+    .map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join('');
+}
+
 /* ---------- wiring ---------- */
 function update() {
   const m = model();
-  $('warn').style.display = Math.abs(m.tV + m.tH) > 1e-12 ? 'block' : 'none';
+  drawRosette(m);
+  drawDerived(m);
   drawMohr(m);
   drawElements(m);
   drawReadings(m);
   drawSummary(m);
 }
-['vs', 'vt', 'hs', 'ht', 'E', 'nu', 'ja', 'jr', 'jd', 'tp', 'ts', 'tj'].forEach(id => $(id).addEventListener('input', update));
-$('fix').addEventListener('click', () => { $('ht').value = -num('vt'); update(); });
+['rs', 'g1', 'g2', 'g3', 'E', 'nu', 'ja', 'jr', 'jd', 'tp', 'ts', 'tj'].forEach(id => $(id).addEventListener('input', update));
 window.addEventListener('resize', update);
 update();
 </script>
