@@ -18,6 +18,7 @@
   .nav { margin: 0 0 8px; font-size: .85rem; }
   .nav a { color: var(--blue); text-decoration: none; }
   .nav a:hover { text-decoration: underline; }
+  fieldset[hidden] { display: none; }
   .steps { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
   .steps button { min-width: 32px; }
   .steps button.on { background: var(--orange); border-color: var(--orange); color: #fff; font-weight: 600; }
@@ -81,8 +82,17 @@
         <legend>1. Choose the rosette</legend>
         <select id="rs">
           <option value="rect">Rectangle (0&deg;, 45&deg;, 90&deg;)</option>
-          <option value="delta">Delta &mdash; triangle (0&deg;, 60&deg;, 120&deg;)</option>
-          <option value="star">Star (90&deg;, 210&deg;, 330&deg;)</option>
+          <option value="delta">Delta &mdash; triangle (60&deg; apart)</option>
+          <option value="star">Star (120&deg; apart)</option>
+        </select>
+      </fieldset>
+      <fieldset id="rvbox" hidden>
+        <legend>Orientation &mdash; which gauge is vertical?</legend>
+        <select id="rv">
+          <option value="x">Original (gauge 1 along x)</option>
+          <option value="1">Gauge 1 vertical</option>
+          <option value="2">Gauge 2 vertical</option>
+          <option value="3">Gauge 3 vertical</option>
         </select>
       </fieldset>
       <svg id="rosette" viewBox="0 6 240 130" role="img" aria-label="Rosette layout" style="max-width:260px;margin:6px auto 8px"></svg>
@@ -185,11 +195,20 @@ function fmt(x, d = 2) {
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 
 /* ---------- model ---------- */
-const ROSETTES = { rect: [0, 45, 90], delta: [0, 60, 120], star: [90, 210, 330] };
+const ROSETTES = { rect: [0, 45, 90], delta: [0, 60, 120], star: [0, 120, 240] };
+const ROSETTE_STEP = { rect: 45, delta: 60, star: 120 };
+// gauge angles (deg, ccw from x) and the gauge that carries the McClintock pole (index)
+function rosetteAngles() {
+  const kind = $('rs').value, vs = $('rv').value;
+  if (kind === 'rect') return { deg: ROSETTES.rect, orig: ROSETTES.rect, v: 1 };
+  if (vs === 'x') return { deg: ROSETTES[kind], orig: ROSETTES[kind], v: 1 };
+  const v = +vs - 1, st = ROSETTE_STEP[kind];
+  return { deg: [0, 1, 2].map(i => 90 + (i - v) * st), orig: ROSETTES[kind], v };
+}
 
 function model() {
   const u = 1e-6;                                   // inputs are in µε
-  const th = ROSETTES[$('rs').value].map(a => a * D2R), r = [num('g1') * u, num('g2') * u, num('g3') * u];
+  const ra = rosetteAngles(), th = ra.deg.map(a => a * D2R), r = [num('g1') * u, num('g2') * u, num('g3') * u];
   // ε(θ) = ec + de·cos2θ − e·sin2θ at each gauge: solve the 3×3 for (ec, de, e)
   const A = th.map(t => [1, Math.cos(2 * t), -Math.sin(2 * t)]);
   const det3 = M => M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0]) + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]);
@@ -206,7 +225,7 @@ function model() {
   const sx = Ek / (1 - nu * nu) * (ex + nu * ey), sy = Ek / (1 - nu * nu) * (ey + nu * ex), t = G * g;
   const c = (sx + sy) / 2, R = 2 * G * Re, phi = phie;
   const thP = -phi / 2 / D2R;                       // principal angle, deg (ccw +)
-  return { th, r, sx, sy, t, e, tV, tH, E, nu, G, c, R, phi, ex, ey, g, ec, Re, phie,
+  return { th, r, ra, vmc: ra.v, sx, sy, t, e, tV, tH, E, nu, G, c, R, phi, ex, ey, g, ec, Re, phie,
            ez: -nu * (sx + sy) / Ek, thP, thS: thP + 45 };
 }
 function stateAt(m, deg) {
@@ -368,41 +387,43 @@ function drawSummary(m) {
 /* ---------- McClintock construction ---------- */
 let mcStep = 6;
 const MC_STEPS = 6;
-function mcCaptions(a, kind) {
-  const lay = kind === 'star' ? `gauge 2 along the vertical, gauges 1 and 3 each ${fmt(a, 0)}° either side (three arms, 120° apart)`
-    : kind === 'delta' ? `the triangle with gauge 2 along the vertical and gauges 1 and 3 each ${fmt(a, 0)}° either side`
-    : `gauge 2 along the vertical, gauges 1 and 3 each ${fmt(a, 0)}° either side`;
+function mcCaptions(m, kind) {
+  const v = m.vmc + 1, oth = [1, 2, 3].filter(i => i !== v);
+  const lay = kind === 'star' ? `a three-armed star with gauge ${v} along the vertical (arms 120° apart)`
+    : kind === 'delta' ? `the triangle with gauge ${v} along the vertical`
+    : `gauge ${v} along the vertical, gauges ${oth[0]} and ${oth[1]} each 45° either side`;
   return [
     'Draw a vertical line through each gauge reading &epsilon;<sub>1</sub>, &epsilon;<sub>2</sub>, &epsilon;<sub>3</sub> on a common &epsilon; scale. The heights are not known yet.',
-    `Choose any point O on the vertical line of gauge 2 and lay the rosette on it: ${lay}. Move the slider &mdash; the result does not depend on where O is.`,
-    'Extend each gauge arm until it meets its own vertical line: gauge 1 &rarr; pt 1, gauge 3 &rarr; pt 3. Gauge 2 lies on its own line, so pt 2 is O itself.',
-    'Join pt 1&ndash;pt 2 and pt 2&ndash;pt 3. The perpendicular bisectors of these two chords meet at the centre of the circle.',
-    'Draw the circle through pt 1, pt 2 and pt 3, centred on that point. The horizontal line through the centre is the &epsilon; axis (&gamma;/2 = 0); its crossings with the circle are the principal strains &epsilon;<sub>p</sub> and &epsilon;<sub>q</sub>.',
-    'Join the centre to pt 1, pt 2 and pt 3. The angle from line 1 to each line is twice the angle between the gauges. (O is the pole of the circle, so pt 2 is where the gauge 2 vertical meets the circle again.) The top and bottom of the circle give &plusmn;&gamma;<sub>max</sub>/2.'
+    `Choose any point O on the vertical line of gauge ${v} and lay the rosette on it: ${lay}. Move the slider &mdash; the result does not depend on where O is.`,
+    `Extend each gauge arm until it meets its own vertical line: gauge ${oth[0]} &rarr; pt ${oth[0]}, gauge ${oth[1]} &rarr; pt ${oth[1]}. Gauge ${v} lies on its own line, so pt ${v} is O itself.`,
+    `Join pt ${oth[0]}&ndash;pt ${v} and pt ${v}&ndash;pt ${oth[1]}. The perpendicular bisectors of these two chords meet at the centre of the circle.`,
+    'Draw the circle through the three points, centred on that point. The horizontal line through the centre is the &epsilon; axis (&gamma;/2 = 0); its crossings with the circle are the principal strains &epsilon;<sub>p</sub> and &epsilon;<sub>q</sub>.',
+    `Join the centre to pt 1, pt 2 and pt 3. The angle from line 1 to each line is twice the angle between the gauges. (O is the pole of the circle, so pt ${v} is where the gauge ${v} vertical meets the circle again.) The top and bottom of the circle give &plusmn;&gamma;<sub>max</sub>/2.`
   ];
 }
-function mcGeom(r, cot, yO) {
-  const O = [r[1], yO], A = [r[0], yO + (r[0] - r[1]) * cot], C = [r[2], yO - (r[2] - r[1]) * cot];
-  const d = 2 * (A[0] * (O[1] - C[1]) + O[0] * (C[1] - A[1]) + C[0] * (A[1] - O[1]));
-  if (Math.abs(d) < 1e-9) return { O, A, C, ok: false };
-  const sq = P => P[0] * P[0] + P[1] * P[1];
-  const ux = (sq(A) * (O[1] - C[1]) + sq(O) * (C[1] - A[1]) + sq(C) * (A[1] - O[1])) / d;
-  const uy = (sq(A) * (C[0] - O[0]) + sq(O) * (A[0] - C[0]) + sq(C) * (O[0] - A[0])) / d;
-  return { O, A, C, ok: true, ux, uy, R: Math.hypot(A[0] - ux, A[1] - uy) };
+// pole O on the vertical line of gauge v; the other arms meet their own verticals at the other points
+function mcGeom(r, th, v, yO) {
+  const P = [0, 1, 2].map(i => i === v ? [r[i], yO] : [r[i], yO - (r[i] - r[v]) * Math.cos(th[i] - th[v]) / Math.sin(th[i] - th[v])]);
+  const [A, B, C] = P, d = 2 * (A[0] * (B[1] - C[1]) + B[0] * (C[1] - A[1]) + C[0] * (A[1] - B[1]));
+  if (Math.abs(d) < 1e-9) return { P, ok: false };
+  const sq = Q => Q[0] * Q[0] + Q[1] * Q[1];
+  const ux = (sq(A) * (B[1] - C[1]) + sq(B) * (C[1] - A[1]) + sq(C) * (A[1] - B[1])) / d;
+  const uy = (sq(A) * (C[0] - B[0]) + sq(B) * (A[0] - C[0]) + sq(C) * (B[0] - A[0])) / d;
+  return { P, ok: true, ux, uy, R: Math.hypot(A[0] - ux, A[1] - uy) };
 }
 function drawMc(m) {
-  const svg = $('mc'), u = 1e6, s = mcStep;
-  const r = m.r.map(v => v * u), a = (m.th[1] - m.th[0]) / D2R, cot = 1 / Math.tan(a * D2R);
+  const svg = $('mc'), u = 1e6, s = mcStep, v = m.vmc, kind = $('rs').value;
+  const r = m.r.map(x => x * u), th = m.th, oth = [0, 1, 2].filter(i => i !== v);
   const span = Math.max(Math.abs(r[0] - r[2]), Math.abs(r[1] - r[0]), Math.abs(r[2] - r[1]), 2 * m.Re * u, 1);
   const yOf = t => (t / 100 - 0.5) * 1.2 * span;               // slider 0..100 -> height of O
   const geom = yO => {
-    const g = mcGeom(r, cot, yO);
+    const g = mcGeom(r, th, v, yO);
     return g.ok ? g : { ...g, ux: m.ec * u, uy: yO, R: m.Re * u };
   };
-  const g = geom(yOf(num('mo'))), { O, A, C, ux, uy, R } = g;
+  const { P, ux, uy, R } = geom(yOf(num('mo'))), O = P[v];
   // bounds cover the whole slider range, so moving O visibly moves it
   const xs = [...r, 0], ys = [];
-  [0, 100].forEach(t => { const q = geom(yOf(t)); xs.push(q.ux - q.R, q.ux + q.R); ys.push(q.uy - q.R, q.uy + q.R, q.O[1], q.A[1], q.C[1]); });
+  [0, 100].forEach(t => { const q = geom(yOf(t)); xs.push(q.ux - q.R, q.ux + q.R); ys.push(q.uy - q.R, q.uy + q.R, ...q.P.map(z => z[1])); });
   let xlo = Math.min(...xs), xhi = Math.max(...xs), ylo = Math.min(...ys), yhi = Math.max(...ys);
   const px = 0.1 * (xhi - xlo || 1), py = 0.1 * (yhi - ylo || 1);
   xlo -= px; xhi += px; ylo -= py * 1.8; yhi += py * 1.8;
@@ -410,66 +431,78 @@ function drawMc(m) {
   const H = Math.round(Math.min(600, Math.max(320, W * 0.85)));
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   const k = Math.min(W / (xhi - xlo), H / (yhi - ylo));
-  const X = v => W / 2 + (v - (xlo + xhi) / 2) * k, Y = v => H / 2 - (v - (ylo + yhi) / 2) * k;
-  const orange = '#e08a00', blue = '#1f6feb', green = '#1a8f5a', teal = '#0e8a9b', ink = '#1d2330', purple = '#8e44ad';
-  const dot = (P, col, fill = col) => `<circle cx="${X(P[0])}" cy="${Y(P[1])}" r="5" fill="${fill}" stroke="${col}" stroke-width="2"/>`;
-  const lab = (P, str, col, dx, dy, anchor = 'middle') => text(X(P[0]) + dx, Y(P[1]) + dy, str, { fill: col, bold: true, size: 12, anchor });
-  const side = P => (P[0] >= O[0] ? 1 : -1);
+  const X = q => W / 2 + (q - (xlo + xhi) / 2) * k, Y = q => H / 2 - (q - (ylo + yhi) / 2) * k;
+  const orange = '#e08a00', blue = '#1f6feb', green = '#1a8f5a', teal = '#0e8a9b', ink = '#1d2330', purple = '#8e44ad', lc = '#b36b00';
+  const dot = (Q, col, fill = col) => `<circle cx="${X(Q[0])}" cy="${Y(Q[1])}" r="5" fill="${fill}" stroke="${col}" stroke-width="2"/>`;
+  const lab = (Q, str, col, dx, dy, anchor = 'middle') => text(X(Q[0]) + dx, Y(Q[1]) + dy, str, { fill: col, bold: true, size: 12, anchor });
+  const side = Q => (Q[0] >= O[0] ? 1 : -1);
   let o = '';
 
   // step 1: gauge lines on an ε scale
   const yb = H - 34;
   o += line(10, yb, W - 10, yb, '#8a93a3', 1.2);
-  r.forEach((v, i) => {
-    o += line(X(v), 40, X(v), yb + 5, orange, 2, 'stroke-dasharray="6 4"');
-    o += text(X(v), 14 + (i % 2) * 14, `ε${'₁₂₃'[i]} = ${fmt(v, 1)}`, { fill: '#b36b00', bold: true, size: 12 });
-    o += text(X(v), yb + 14 + (i % 2) * 12, `gauge ${i + 1} (${fmt(m.th[i] / D2R, 0)}°)`, { fill: '#b36b00', size: 10 });
+  r.forEach((x, i) => {
+    o += line(X(x), 40, X(x), yb + 5, orange, 2, 'stroke-dasharray="6 4"');
+    o += text(X(x), 14 + (i % 2) * 14, `ε${'₁₂₃'[i]} = ${fmt(x, 1)}`, { fill: lc, bold: true, size: 12 });
+    o += text(X(x), yb + 14 + (i % 2) * 12, `gauge ${i + 1} (${fmt(((th[i] / D2R) % 360 + 360) % 360, 0)}°)`, { fill: lc, size: 10 });
   });
 
   // steps 2-4: construction (faded once the results are shown)
   let c = '';
   if (s >= 2) {
-    // rosette laid on O: gauge 2 along the vertical, gauges 1 and 3 at ±a
-    const Lr = Math.min(70, 0.16 * Math.min(W, H)), sa = Math.sin(a * D2R), ca = Math.cos(a * D2R);
-    const arm = (dx, dy, n) => line(X(O[0]), Y(O[1]), X(O[0]) + dx * Lr, Y(O[1]) - dy * Lr, orange, 5, 'stroke-linecap="round" opacity=".6"') +
-      text(X(O[0]) + dx * (Lr + 12), Y(O[1]) - dy * (Lr + 12), n, { fill: '#b36b00', bold: true, size: 12 });
-    if ($('rs').value === 'delta') {
-      // equilateral triangle on O: side P0-P1 is gauge 2 (vertical), side P0-P2 gauge 1, side P1-P2 gauge 3
-      const P0 = [X(O[0]), Y(O[1])], P1 = [P0[0], P0[1] - Lr], P2 = [P0[0] + sa * Lr, P0[1] - ca * Lr];
+    // rosette laid on O with gauge v vertical; the other arms keep their angle to it
+    const Lr = Math.min(70, 0.16 * Math.min(W, H)), O0 = [X(O[0]), Y(O[1])];
+    const dir = i => [-Math.sin(th[i] - th[v]), Math.cos(th[i] - th[v])];        // arm direction, y up
+    if (kind === 'delta') {
+      // equilateral triangle: vertical side = gauge v; the other two sides are parallel to arms
+      const P1 = [O0[0], O0[1] - Lr], P2 = [O0[0] + 0.866 * Lr, O0[1] - 0.5 * Lr];
       const sd = (p, q) => line(p[0], p[1], q[0], q[1], orange, 5, 'stroke-linecap="round" opacity=".6"');
-      c += sd(P0, P1) + sd(P0, P2) + sd(P1, P2);
-      c += text(P0[0] - 10, (P0[1] + P1[1]) / 2, '2', { fill: '#b36b00', bold: true, size: 12, anchor: 'end' });
-      c += text((P0[0] + P2[0]) / 2 + 10, (P0[1] + P2[1]) / 2 + 12, '1', { fill: '#b36b00', bold: true, size: 12, anchor: 'start' });
-      c += text((P1[0] + P2[0]) / 2 + 10, (P1[1] + P2[1]) / 2 - 8, '3', { fill: '#b36b00', bold: true, size: 12, anchor: 'start' });
-      c += line(P0[0], P0[1], P0[0] - sa * Lr, P0[1] - ca * Lr, orange, 2, 'stroke-dasharray="4 3" opacity=".8"');
-      c += text(P0[0] - sa * Lr - 8, P0[1] - ca * Lr - 6, '3 (through O)', { fill: '#b36b00', size: 10, anchor: 'end' });
+      c += sd(O0, P1) + sd(O0, P2) + sd(P1, P2);
+      c += text(O0[0] - 10, (O0[1] + P1[1]) / 2, `${v + 1}`, { fill: lc, bold: true, size: 12, anchor: 'end' });
+      oth.forEach(i => {
+        let d = ((th[i] - th[v]) / D2R) % 180; if (d > 90) d -= 180; if (d <= -90) d += 180;
+        const [ax, ay] = dir(i);
+        if (d < 0) c += text((O0[0] + P2[0]) / 2 + 10, (O0[1] + P2[1]) / 2 + 12, `${i + 1}`, { fill: lc, bold: true, size: 12, anchor: 'start' });
+        else {
+          c += text((P1[0] + P2[0]) / 2 + 10, (P1[1] + P2[1]) / 2 - 8, `${i + 1}`, { fill: lc, bold: true, size: 12, anchor: 'start' });
+          c += line(O0[0], O0[1], O0[0] + ax * Lr, O0[1] - ay * Lr, orange, 2, 'stroke-dasharray="4 3" opacity=".8"');
+          c += text(O0[0] + ax * Lr - 8, O0[1] - ay * Lr - 6, `${i + 1} (through O)`, { fill: lc, size: 10, anchor: 'end' });
+        }
+      });
     } else {
-      c += arm(sa, ca, '1') + arm(0, 1, '2') + arm(-sa, ca, '3');
-      const yo = ca >= 0 ? 6 : -6;
-      c += text(X(O[0]) + sa * Lr * 0.55 + 10, Y(O[1]) - ca * Lr * 0.55 + yo, `${fmt(a, 0)}°`, { fill: '#b36b00', size: 10, anchor: 'start' });
-      c += text(X(O[0]) - sa * Lr * 0.55 - 10, Y(O[1]) - ca * Lr * 0.55 + yo, `${fmt(a, 0)}°`, { fill: '#b36b00', size: 10, anchor: 'end' });
+      [0, 1, 2].forEach(i => {
+        const [ax, ay] = dir(i);
+        c += line(O0[0], O0[1], O0[0] + ax * Lr, O0[1] - ay * Lr, orange, 5, 'stroke-linecap="round" opacity=".6"');
+        c += text(O0[0] + ax * (Lr + 12), O0[1] - ay * (Lr + 12), `${i + 1}`, { fill: lc, bold: true, size: 12 });
+        if (i !== v) {
+          const dd = Math.abs(((th[i] - th[v]) / D2R + 540) % 360 - 180);              // angle between the two arms
+          c += text(O0[0] + ax * Lr * 0.5 - ay * 12, O0[1] - ay * Lr * 0.5 - ax * 12, `${fmt(dd, 0)}°`, { fill: lc, size: 10 });
+        }
+      });
     }
-    c += dot(O, blue, '#fff') + (s === 2 ? text(X(O[0]) + 10, Y(O[1]) + 16, 'O', { fill: blue, bold: true, size: 13, anchor: 'start' }) : '');
+    c += dot(O, blue, '#fff') + (s === 2 ? text(O0[0] + 10, O0[1] + 16, 'O', { fill: blue, bold: true, size: 13, anchor: 'start' }) : '');
   }
   if (s >= 3) {
-    c += line(X(A[0]), Y(A[1]), X(O[0]), Y(O[1]), blue, 1.6) + line(X(O[0]), Y(O[1]), X(C[0]), Y(C[1]), blue, 1.6);
-    c += dot(A, blue) + dot(C, blue) + dot(O, blue);
+    oth.forEach(i => { c += line(X(P[i][0]), Y(P[i][1]), X(O[0]), Y(O[1]), blue, 1.6); });
+    c += dot(P[oth[0]], blue) + dot(P[oth[1]], blue) + dot(O, blue);
     if (s < 6) {
-      c += lab(A, 'pt 1', blue, side(A) * 10, -10, side(A) > 0 ? 'start' : 'end');
-      c += lab(C, 'pt 3', blue, side(C) * 10, 16, side(C) > 0 ? 'start' : 'end');
-      c += lab(O, 'pt 2', blue, -10, 20, 'end');
+      oth.forEach(i => {
+        const q = P[i];
+        c += lab(q, `pt ${i + 1}`, blue, side(q) * 10, q[1] >= O[1] ? -10 : 16, side(q) > 0 ? 'start' : 'end');
+      });
+      c += lab(O, `pt ${v + 1}`, blue, -10, 20, 'end');
     }
   }
   if (s >= 4 && s <= 5) {
-    const bis = (P, Q) => {
-      const dx = Q[0] - P[0], dy = Q[1] - P[1], L = Math.hypot(dx, dy);
+    const bis = (A, B) => {
+      const dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy);
       if (L < 1e-9) return '';
-      const M = [(P[0] + Q[0]) / 2, (P[1] + Q[1]) / 2], n = [-dy / L, dx / L], big = 4 * span;
-      return line(X(P[0]), Y(P[1]), X(Q[0]), Y(Q[1]), '#8a93a3', 1.2, 'stroke-dasharray="3 3"') +
+      const M = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], n = [-dy / L, dx / L], big = 4 * span;
+      return line(X(A[0]), Y(A[1]), X(B[0]), Y(B[1]), '#8a93a3', 1.2, 'stroke-dasharray="3 3"') +
         line(X(M[0] - n[0] * big), Y(M[1] - n[1] * big), X(M[0] + n[0] * big), Y(M[1] + n[1] * big), purple, 1.5, 'stroke-dasharray="7 4"') +
         `<circle cx="${X(M[0])}" cy="${Y(M[1])}" r="3" fill="${purple}"/>`;
     };
-    c += bis(A, O) + bis(O, C);
+    c += bis(P[oth[0]], O) + bis(O, P[oth[1]]);
     c += `<circle cx="${X(ux)}" cy="${Y(uy)}" r="5" fill="${purple}" stroke="#fff" stroke-width="1.5"/>`;
     c += text(X(ux) + 10, Y(uy) + 18, s === 4 ? 'Centre of circle' : 'C', { fill: purple, bold: true, size: 12, anchor: 'start' });
   }
@@ -481,15 +514,14 @@ function drawMc(m) {
     o += arrow(10, Y(uy), W - 6, Y(uy), ink, 1.4) + text(W - 8, Y(uy) - 12, 'ε (µε)', { bold: true, anchor: 'end', size: 13 });
     o += arrow(X(0), H - 8, X(0), 8, ink, 1.1) + text(X(0) + 10, 14, 'γ/2', { bold: true, anchor: 'start', size: 12 });
     o += `<circle cx="${X(ux)}" cy="${Y(uy)}" r="3.5" fill="${ink}"/>` + (s >= 6 ? text(X(ux) - 10, Y(uy) + 14, 'C', { bold: true, size: 12 }) : '');
-    [[ux + R, 'εp'], [ux - R, 'εq']].forEach(([v, n]) => {
-      o += `<circle cx="${X(v)}" cy="${Y(uy)}" r="4.5" fill="${green}"/>` + text(X(v), Y(uy) + 18, `${n} = ${fmt(v, 1)}`, { fill: green, bold: true, size: 12 });
+    [[ux + R, 'εp'], [ux - R, 'εq']].forEach(([x, n]) => {
+      o += `<circle cx="${X(x)}" cy="${Y(uy)}" r="4.5" fill="${green}"/>` + text(X(x), Y(uy) + 18, `${n} = ${fmt(x, 1)}`, { fill: green, bold: true, size: 12 });
     });
   }
-  // step 6: gauges, V/H and max shear points (heights relative to the true axis)
+  // step 6: gauge points pt 1-3 on the circle, radii to the centre and angles from line 1
   if (s >= 6) {
-    const P = (x, t) => [x, uy + t];
-    // gauge points pt 1-3 on the circle, radii to the centre and angles from line 1
-    const Gp = m.th.map(t => { const q = stateAt(m, t / D2R); return P(q.ex * u, q.g / 2 * u); });
+    const Q = (x, t) => [x, uy + t];
+    const Gp = th.map(t => { const q = stateAt(m, t / D2R); return Q(q.ex * u, q.g / 2 * u); });
     const cx_ = X(ux), cy_ = Y(uy), ang = G => Math.atan2(G[1] - uy, G[0] - ux);
     Gp.forEach((G, i) => { o += line(cx_, cy_, X(G[0]), Y(G[1]), orange, i === 0 ? 2.4 : 1.8); });
     [1, 2].forEach(i => {
@@ -502,16 +534,16 @@ function drawMc(m) {
     Gp.forEach((G, i) => {
       o += dot(G, orange, '#fff');
       const dx = G[0] - ux, dy = G[1] - uy, L = Math.hypot(dx, dy) || 1;
-      o += text(X(G[0]) + dx / L * 26, Y(G[1]) - dy / L * 18, `pt ${i + 1}`, { fill: '#b36b00', bold: true, size: 12 });
+      o += text(X(G[0]) + dx / L * 26, Y(G[1]) - dy / L * 18, `pt ${i + 1}`, { fill: lc, bold: true, size: 12 });
     });
     [[R, '+'], [-R, '−']].forEach(([t, sg]) => {
-      const T = P(ux, t);
+      const T = Q(ux, t);
       o += `<circle cx="${X(T[0])}" cy="${Y(T[1])}" r="4.5" fill="${teal}"/>` +
         text(X(T[0]), Y(T[1]) + (t > 0 ? -12 : 14), `${sg}γmax/2 = ${sg === '+' ? '' : '−'}${fmt(R, 1)}`.replace('= −−', '= −'), { fill: teal, bold: true, size: 11 });
     });
   }
   svg.innerHTML = o;
-  $('mccap').innerHTML = `<b>Step ${s}.</b> ` + mcCaptions(a, $('rs').value)[s - 1];
+  $('mccap').innerHTML = `<b>Step ${s}.</b> ` + mcCaptions(m, kind)[s - 1];
   $('mcsteps').innerHTML = Array.from({ length: MC_STEPS }, (_, i) =>
     `<button type="button" data-s="${i + 1}" class="${i + 1 === s ? 'on' : ''}">${i + 1}</button>`).join('');
   $('mcprev').disabled = s <= 1; $('mcnext').disabled = s >= MC_STEPS;
@@ -519,44 +551,57 @@ function drawMc(m) {
 
 /* ---------- rosette diagram ---------- */
 function drawRosette(m) {
-  const cx = 120, cy = 92, L = 58, o0 = '#8a93a3', or = '#e08a00', lc = '#b36b00', kind = $('rs').value;
-  const side = (x1, y1, x2, y2) => line(x1, y1, x2, y2, or, 5, 'stroke-linecap="round" opacity=".6"');
-  const svg = $('rosette');
-  svg.setAttribute('viewBox', kind === 'star' ? '0 0 380 160' : '0 0 240 150');
-  svg.style.maxWidth = kind === 'star' ? '100%' : '260px';
+  const L = 58, o0 = '#8a93a3', or = '#e08a00', lc = '#b36b00', kind = $('rs').value, ra = m.ra;
+  const svg = $('rosette'), rotated = kind !== 'rect' && $('rv').value !== 'x';
+  const wide = rotated;
+  svg.setAttribute('viewBox', wide ? '0 0 380 170' : '0 0 240 150');
+  svg.style.maxWidth = wide ? '100%' : '260px';
+  const deg = t => fmt(((t % 360) + 360) % 360, 0);
+  const side = (x1, y1, x2, y2, col = or, op = '.6') => line(x1, y1, x2, y2, col, 5, `stroke-linecap="round" opacity="${op}"`);
+  const xl = wide ? 0.55 * L : L + 30, xaxis = (x, y) => arrow(x - 10, y, x + xl, y, o0, 1.1) + text(x + xl + 6, y, 'x', { size: 10, fill: o0 });
+  // star: three arms from a point
+  const star = (x, y, ths, col, op, axis) => {
+    let q = axis ? xaxis(x, y) : '';
+    ths.forEach((t, i) => {
+      const ux = Math.cos(t * D2R), uy = -Math.sin(t * D2R), l = L * 0.78;
+      q += side(x, y, x + ux * l, y + uy * l, col, op);
+      q += text(x + ux * (l + 20), y + uy * (l + 12), `${i + 1} (${deg(t)}°)`, { fill: lc, bold: true, size: 11 });
+    });
+    return q + `<circle cx="${x}" cy="${y}" r="3" fill="#1d2330"/>`;
+  };
+  // delta: equilateral triangle whose sides run along the gauge angles
+  const tri = (x, y, ths, col, op, axis) => {
+    const Rt = L * 0.62, psi = (ths[0] - 150) * D2R, V = [0, 1, 2].map(k => [x + Rt * Math.cos(psi + k * 2 * Math.PI / 3), y - Rt * Math.sin(psi + k * 2 * Math.PI / 3)]);
+    let q = axis ? xaxis(x, y + Rt * 1.35) : '';
+    for (let k = 0; k < 3; k++) {
+      const A = V[k], B = V[(k + 1) % 3], dirA = ((psi / D2R + 150 + 120 * k) % 180 + 180) % 180;
+      q += side(A[0], A[1], B[0], B[1], col, op);
+      const i = ths.findIndex(t => Math.abs((((t % 180) + 180) % 180) - dirA) < 1e-6 || Math.abs(Math.abs((((t % 180) + 180) % 180) - dirA) - 180) < 1e-6);
+      const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2, nx = mx - x, ny = my - y, nl = Math.hypot(nx, ny) || 1;
+      if (i >= 0) q += text(mx + nx / nl * 24, my + ny / nl * 14, `${i + 1} (${deg(ths[i])}°)`, { fill: lc, bold: true, size: 11 });
+    }
+    return q;
+  };
   let o = '';
-  if (kind === 'delta') {
-    // equilateral triangle: base = gauge 1 (0°), left side = gauge 2 (60°), right side = gauge 3 (120°)
-    const by = 118, h = L * Math.sin(Math.PI / 3), P0 = [cx - L / 2, by], P1 = [cx + L / 2, by], P2 = [cx, by - h];
-    o += arrow(P0[0] - 14, by, P1[0] + 44, by, o0, 1.2) + text(P1[0] + 50, by, 'x', { size: 11, fill: o0 });
-    o += side(...P0, ...P1) + side(...P0, ...P2) + side(...P1, ...P2);
-    o += text(cx, by + 14, `1 (${fmt(m.th[0] / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
-    o += text(P0[0] + (P2[0] - P0[0]) / 2 - 24, by - h / 2, `2 (${fmt(m.th[1] / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
-    o += text(P1[0] + (P2[0] - P1[0]) / 2 + 26, by - h / 2, `3 (${fmt(m.th[2] / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
-    o += text(cx, by - h - 10, '60° each corner', { fill: o0, size: 10 });
-  } else if (kind === 'star') {
-    // original star (gauge 1 along x) beside the same star rotated 90° so that gauge 1 is vertical (used here)
-    const star = (x, y, ths, col, op, axis) => {
-      let q = axis ? arrow(x - 8, y, x + L * 0.5 + 26, y, o0, 1) + text(x + L * 0.5 + 32, y, 'x', { size: 10, fill: o0 }) : '';
-      ths.forEach((t, i) => {
-        const ux = Math.cos(t), uy = -Math.sin(t);
-        q += line(x, y, x + ux * L * 0.78, y + uy * L * 0.78, col, 5, `stroke-linecap="round" opacity="${op}"`);
-        q += text(x + ux * (L * 0.78 + 20), y + uy * (L * 0.78 + 12), `${i + 1} (${fmt(((t / D2R) % 360 + 360) % 360, 0)}°)`, { fill: lc, bold: true, size: 11 });
-      });
-      return q + `<circle cx="${x}" cy="${y}" r="3" fill="#1d2330"/>`;
-    };
-    const rot = m.th.map(t => t - Math.PI / 2);          // original star: gauge 1 along x
-    o += star(66, cy, rot, '#8a93a3', '.55', false) + star(292, cy, m.th, or, '.6', true);
-    o += arrow(158, cy - 4, 210, cy - 4, '#8e44ad', 1.6) + text(184, cy - 16, 'rotate 90°', { size: 10, fill: '#8e44ad' });
-    o += text(66, 152, 'original star', { size: 10.5, fill: o0 }) + text(292, 152, 'rotated: gauge 1 vertical (used)', { size: 10.5, fill: lc, bold: true });
-  } else {
-    o += arrow(cx - 10, cy, cx + L + 38, cy, o0, 1.2) + text(cx + L + 44, cy, 'x', { size: 11, fill: o0 });
+  if (kind === 'rect') {
+    const cx = 120, cy = 100;
+    o += xaxis(cx, cy).replace(`x="${cx + L + 36}"`, `x="${cx + L + 36}"`);
     m.th.forEach((t, i) => {
       const ux = Math.cos(t), uy = -Math.sin(t);
       o += side(cx, cy, cx + ux * L, cy + uy * L);
       o += text(cx + ux * (L + 20), cy + uy * (L + 14) - (i === 0 ? 8 : 0), `${i + 1} (${fmt(t / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
     });
     o += `<circle cx="${cx}" cy="${cy}" r="3" fill="#1d2330"/>`;
+  } else if (!rotated) {
+    o += kind === 'delta' ? tri(120, 88, ra.deg, or, '.6', true) + text(120, 18, '60° each corner', { size: 10, fill: o0 })
+                          : star(120, 100, ra.deg, or, '.6', true);
+  } else {
+    // original orientation beside the rotated one chosen by the user
+    const v = ra.v, rot = ((ra.deg[v] - ra.orig[v]) % 360 + 540) % 360 - 180;
+    const draw = kind === 'delta' ? tri : star;
+    o += draw(80, 88, ra.orig, '#8a93a3', '.55', false) + draw(292, 88, ra.deg, or, '.6', true);
+    o += arrow(152, 84, 214, 84, '#8e44ad', 1.6) + text(183, 72, `rotate ${fmt(rot, 0)}°`, { size: 10, fill: '#8e44ad' });
+    o += text(80, 160, 'original', { size: 10.5, fill: o0 }) + text(292, 160, `gauge ${v + 1} vertical (used)`, { size: 10.5, fill: lc, bold: true });
   }
   svg.innerHTML = o;
 }
@@ -576,7 +621,12 @@ function update() {
   drawReadings(m);
   drawSummary(m);
 }
-['rs', 'g1', 'g2', 'g3', 'E', 'nu', 'ja', 'jr', 'jd', 'mo'].forEach(id => $(id).addEventListener('input', update));
+$('rs').addEventListener('input', () => {      // set a sensible orientation when the rosette type changes
+  const k = $('rs').value;
+  $('rvbox').hidden = k === 'rect';
+  $('rv').value = k === 'star' ? '1' : 'x';
+});
+['rs', 'rv', 'g1', 'g2', 'g3', 'E', 'nu', 'ja', 'jr', 'jd', 'mo'].forEach(id => $(id).addEventListener('input', update));
 $('mcprev').addEventListener('click', () => { mcStep = Math.max(1, mcStep - 1); update(); });
 $('mcnext').addEventListener('click', () => { mcStep = Math.min(MC_STEPS, mcStep + 1); update(); });
 $('mcsteps').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { mcStep = +b.dataset.s; update(); } });

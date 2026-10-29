@@ -18,6 +18,7 @@ Interactive single-page tools (plain HTML/JS, no build step).
 ## Mohr's circle – strain
 
 - Choose a strain rosette (**Rectangle** 0°/45°/90°, **Delta** triangle 0°/60°/120°, **Star** one vertical gauge and the others 120° apart: 90°/210°/330°) and enter gauge strains ε1, ε2, ε3 in µε.
+- For Delta and Star rosettes you can choose which gauge is vertical (or keep the original orientation); the rosette diagram shows the original beside the rotated one, and the McClintock construction uses that gauge's vertical line for the pole.
 - The circle is built step by step with **McClintock's construction** (gauge lines → arbitrary point O → lines at the gauge spacing to A and C → circle through A, O, C → ε axis through its centre → read results).
 - εx, εy, γxy and the V/H points are derived from the three readings; the gauges are marked on the circle.
 - Draws Mohr's circle, principal strains and max shear strain.
