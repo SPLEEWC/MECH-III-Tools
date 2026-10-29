@@ -81,11 +81,11 @@
         <legend>1. Choose the rosette</legend>
         <select id="rs">
           <option value="rect">Rectangle (0&deg;, 45&deg;, 90&deg;)</option>
-          <option value="delta">Delta (0&deg;, 60&deg;, 120&deg;)</option>
-          <option value="star">Star (0&deg;, 60&deg;, 120&deg;)</option>
+          <option value="delta">Delta &mdash; triangle (0&deg;, 60&deg;, 120&deg;)</option>
+          <option value="star">Star &mdash; 1 vertical, others 120&deg; apart (90&deg;, 210&deg;, 330&deg;)</option>
         </select>
       </fieldset>
-      <svg id="rosette" viewBox="0 0 240 150" role="img" aria-label="Rosette layout" style="max-width:260px;margin:0 auto 8px"></svg>
+      <svg id="rosette" viewBox="0 6 240 130" role="img" aria-label="Rosette layout" style="max-width:260px;margin:0 auto 8px"></svg>
       <fieldset>
         <legend>2. Enter the gauge strains (&micro;&epsilon;)</legend>
         <div class="row3">
@@ -94,7 +94,7 @@
           <label>&epsilon;<sub>3</sub><input type="number" id="g3" value="200" step="any"></label>
         </div>
       </fieldset>
-      <p class="hint">Gauge 1 lies along x; gauge angles are measured counter-clockwise from x. Strain in &micro;&epsilon; (10<sup>&minus;6</sup>). Shear strain &gamma; is <b>positive clockwise</b>; the vertical axis plots &gamma;/2, upward.</p>
+      <p class="hint">Gauge angles are measured counter-clockwise from x. Strain in &micro;&epsilon; (10<sup>&minus;6</sup>). Shear strain &gamma; is <b>positive clockwise</b>; the vertical axis plots &gamma;/2, upward.</p>
       <div class="res" id="vh" style="margin-top:6px"></div>
     </section>
 
@@ -185,7 +185,7 @@ function fmt(x, d = 2) {
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 
 /* ---------- model ---------- */
-const ROSETTES = { rect: [0, 45, 90], delta: [0, 60, 120], star: [0, 60, 120] };
+const ROSETTES = { rect: [0, 45, 90], delta: [0, 60, 120], star: [90, 210, 330] };
 
 function model() {
   const u = 1e-6;                                   // inputs are in µε
@@ -368,14 +368,17 @@ function drawSummary(m) {
 /* ---------- McClintock construction ---------- */
 let mcStep = 6;
 const MC_STEPS = 6;
-function mcCaptions(a) {
+function mcCaptions(a, kind) {
+  const lay = kind === 'star' ? `gauge 2 along the vertical, gauges 1 and 3 each ${fmt(a, 0)}° either side (three arms, 120° apart)`
+    : kind === 'delta' ? `the triangle with gauge 2 along the vertical and gauges 1 and 3 each ${fmt(a, 0)}° either side`
+    : `gauge 2 along the vertical, gauges 1 and 3 each ${fmt(a, 0)}° either side`;
   return [
     'Draw a vertical line through each gauge reading &epsilon;<sub>1</sub>, &epsilon;<sub>2</sub>, &epsilon;<sub>3</sub> on a common &epsilon; scale. The heights are not known yet.',
-    `Choose any point O on the vertical line of gauge 2 (the middle gauge) and lay the rosette on it: gauge 2 along the vertical, gauges 1 and 3 each ${fmt(a, 0)}° either side (the gauge spacing). Move the slider &mdash; the result does not depend on where O is.`,
+    `Choose any point O on the vertical line of gauge 2 and lay the rosette on it: ${lay}. Move the slider &mdash; the result does not depend on where O is.`,
     'Extend each gauge arm until it meets its own vertical line: gauge 1 &rarr; pt 1, gauge 3 &rarr; pt 3. Gauge 2 lies on its own line, so pt 2 is O itself.',
     'Join pt 1&ndash;pt 2 and pt 2&ndash;pt 3. The perpendicular bisectors of these two chords meet at the centre of the circle.',
     'Draw the circle through pt 1, pt 2 and pt 3, centred on that point. The horizontal line through the centre is the &epsilon; axis (&gamma;/2 = 0); its crossings with the circle are the principal strains &epsilon;<sub>p</sub> and &epsilon;<sub>q</sub>.',
-    'Read the results: gauges 1, 2, 3 and the V and H points lie on the circle; the top and bottom of the circle give &plusmn;&gamma;<sub>max</sub>/2.'
+    'Join the centre to pt 1, pt 2 and pt 3. The angle from line 1 to each line is twice the angle between the gauges. (O is the pole of the circle, so pt 2 is where the gauge 2 vertical meets the circle again.) The top and bottom of the circle give &plusmn;&gamma;<sub>max</sub>/2.'
   ];
 }
 function mcGeom(r, cot, yO) {
@@ -430,9 +433,22 @@ function drawMc(m) {
     const Lr = Math.min(70, 0.16 * Math.min(W, H)), sa = Math.sin(a * D2R), ca = Math.cos(a * D2R);
     const arm = (dx, dy, n) => line(X(O[0]), Y(O[1]), X(O[0]) + dx * Lr, Y(O[1]) - dy * Lr, orange, 5, 'stroke-linecap="round" opacity=".6"') +
       text(X(O[0]) + dx * (Lr + 12), Y(O[1]) - dy * (Lr + 12), n, { fill: '#b36b00', bold: true, size: 12 });
-    c += arm(sa, ca, '1') + arm(0, 1, '2') + arm(-sa, ca, '3');
-    c += text(X(O[0]) + sa * Lr * 0.55 + 12, Y(O[1]) - ca * Lr * 0.55 + 6, `${fmt(a, 0)}°`, { fill: '#b36b00', size: 10, anchor: 'start' });
-    c += text(X(O[0]) - sa * Lr * 0.55 - 12, Y(O[1]) - ca * Lr * 0.55 + 6, `${fmt(a, 0)}°`, { fill: '#b36b00', size: 10, anchor: 'end' });
+    if ($('rs').value === 'delta') {
+      // equilateral triangle on O: side P0-P1 is gauge 2 (vertical), side P0-P2 gauge 1, side P1-P2 gauge 3
+      const P0 = [X(O[0]), Y(O[1])], P1 = [P0[0], P0[1] - Lr], P2 = [P0[0] + sa * Lr, P0[1] - ca * Lr];
+      const sd = (p, q) => line(p[0], p[1], q[0], q[1], orange, 5, 'stroke-linecap="round" opacity=".6"');
+      c += sd(P0, P1) + sd(P0, P2) + sd(P1, P2);
+      c += text(P0[0] - 10, (P0[1] + P1[1]) / 2, '2', { fill: '#b36b00', bold: true, size: 12, anchor: 'end' });
+      c += text((P0[0] + P2[0]) / 2 + 10, (P0[1] + P2[1]) / 2 + 12, '1', { fill: '#b36b00', bold: true, size: 12, anchor: 'start' });
+      c += text((P1[0] + P2[0]) / 2 + 10, (P1[1] + P2[1]) / 2 - 8, '3', { fill: '#b36b00', bold: true, size: 12, anchor: 'start' });
+      c += line(P0[0], P0[1], P0[0] - sa * Lr, P0[1] - ca * Lr, orange, 2, 'stroke-dasharray="4 3" opacity=".8"');
+      c += text(P0[0] - sa * Lr - 8, P0[1] - ca * Lr - 6, '3 (through O)', { fill: '#b36b00', size: 10, anchor: 'end' });
+    } else {
+      c += arm(sa, ca, '1') + arm(0, 1, '2') + arm(-sa, ca, '3');
+      const yo = ca >= 0 ? 6 : -6;
+      c += text(X(O[0]) + sa * Lr * 0.55 + 10, Y(O[1]) - ca * Lr * 0.55 + yo, `${fmt(a, 0)}°`, { fill: '#b36b00', size: 10, anchor: 'start' });
+      c += text(X(O[0]) - sa * Lr * 0.55 - 10, Y(O[1]) - ca * Lr * 0.55 + yo, `${fmt(a, 0)}°`, { fill: '#b36b00', size: 10, anchor: 'end' });
+    }
     c += dot(O, blue, '#fff') + (s === 2 ? text(X(O[0]) + 10, Y(O[1]) + 16, 'O', { fill: blue, bold: true, size: 13, anchor: 'start' }) : '');
   }
   if (s >= 3) {
@@ -472,13 +488,21 @@ function drawMc(m) {
   // step 6: gauges, V/H and max shear points (heights relative to the true axis)
   if (s >= 6) {
     const P = (x, t) => [x, uy + t];
-    const V = P(m.ex * u, m.e * u), Hh = P(m.ey * u, -m.e * u);
-    o += line(X(V[0]), Y(V[1]), X(Hh[0]), Y(Hh[1]), '#8a93a3', 1.3, 'stroke-dasharray="5 3"');
-    o += dot(V, blue) + text(X(V[0]) + 14, Y(V[1]) - 10, `V(${fmt(V[0], 1)}, ${fmt(V[1] - uy, 1)})`, { fill: blue, bold: true, size: 11 });
-    o += dot(Hh, '#d1344a') + text(X(Hh[0]) - 14, Y(Hh[1]) + 12, `H(${fmt(Hh[0], 1)}, ${fmt(Hh[1] - uy, 1)})`, { fill: '#d1344a', bold: true, size: 11 });
-    m.th.forEach((t, i) => {
-      const q = stateAt(m, t / D2R), G = P(q.ex * u, q.g / 2 * u);
-      o += dot(G, orange, '#fff') + text(X(G[0]) + 12, Y(G[1]) + (i === 1 ? -12 : 14), `${i + 1}`, { fill: '#b36b00', bold: true, size: 12 });
+    // gauge points pt 1-3 on the circle, radii to the centre and angles from line 1
+    const Gp = m.th.map(t => { const q = stateAt(m, t / D2R); return P(q.ex * u, q.g / 2 * u); });
+    const cx_ = X(ux), cy_ = Y(uy), ang = G => Math.atan2(G[1] - uy, G[0] - ux);
+    Gp.forEach((G, i) => { o += line(cx_, cy_, X(G[0]), Y(G[1]), orange, i === 0 ? 2.4 : 1.8); });
+    [1, 2].forEach(i => {
+      let d = ang(Gp[i]) - ang(Gp[0]); while (d <= 1e-9) d += 2 * Math.PI; while (d > 2 * Math.PI + 1e-9) d -= 2 * Math.PI;
+      const rp = Math.max(R * k, 30) * (i === 1 ? 0.3 : 0.45), a0 = ang(Gp[0]), pp = t => `${cx_ + rp * Math.cos(t)} ${cy_ - rp * Math.sin(t)}`;
+      o += `<path d="M ${pp(a0)} A ${rp} ${rp} 0 ${d > Math.PI ? 1 : 0} 0 ${pp(a0 + d)}" fill="none" stroke="${purple}" stroke-width="1.6"/>`;
+      const am = a0 + d / 2, lr = rp + 15;
+      o += text(cx_ + lr * Math.cos(am), cy_ - lr * Math.sin(am), `1→${i + 1}: ${fmt(d / D2R, 1)}°`, { fill: purple, bold: true, size: 11 });
+    });
+    Gp.forEach((G, i) => {
+      o += dot(G, orange, '#fff');
+      const dx = G[0] - ux, dy = G[1] - uy, L = Math.hypot(dx, dy) || 1;
+      o += text(X(G[0]) + dx / L * 26, Y(G[1]) - dy / L * 18, `pt ${i + 1}`, { fill: '#b36b00', bold: true, size: 12 });
     });
     [[R, '+'], [-R, '−']].forEach(([t, sg]) => {
       const T = P(ux, t);
@@ -487,7 +511,7 @@ function drawMc(m) {
     });
   }
   svg.innerHTML = o;
-  $('mccap').innerHTML = `<b>Step ${s}.</b> ` + mcCaptions(a)[s - 1];
+  $('mccap').innerHTML = `<b>Step ${s}.</b> ` + mcCaptions(a, $('rs').value)[s - 1];
   $('mcsteps').innerHTML = Array.from({ length: MC_STEPS }, (_, i) =>
     `<button type="button" data-s="${i + 1}" class="${i + 1 === s ? 'on' : ''}">${i + 1}</button>`).join('');
   $('mcprev').disabled = s <= 1; $('mcnext').disabled = s >= MC_STEPS;
@@ -495,14 +519,27 @@ function drawMc(m) {
 
 /* ---------- rosette diagram ---------- */
 function drawRosette(m) {
-  const cx = 120, cy = 80, L = 62, o0 = '#8a93a3';
-  let o = arrow(cx - 10, cy, cx + L + 38, cy, o0, 1.2) + text(cx + L + 44, cy, 'x', { size: 11, fill: o0 });
-  m.th.forEach((t, i) => {
-    const ux = Math.cos(t), uy = -Math.sin(t);
-    o += line(cx, cy, cx + ux * L, cy + uy * L, '#e08a00', 5, 'stroke-linecap="round" opacity=".55"');
-    o += text(cx + ux * (L + 14), cy + uy * (L + 14) - (i === 0 ? 8 : 0), `${i + 1} (${fmt(t / D2R, 0)}°)`, { fill: '#b36b00', bold: true, size: 11 });
-  });
-  o += `<circle cx="${cx}" cy="${cy}" r="3" fill="#1d2330"/>`;
+  const cx = 120, cy = 80, L = 62, o0 = '#8a93a3', or = '#e08a00', lc = '#b36b00', kind = $('rs').value;
+  const side = (x1, y1, x2, y2) => line(x1, y1, x2, y2, or, 5, 'stroke-linecap="round" opacity=".6"');
+  let o = '';
+  if (kind === 'delta') {
+    // equilateral triangle: base = gauge 1 (0°), left side = gauge 2 (60°), right side = gauge 3 (120°)
+    const by = 112, h = L * Math.sin(Math.PI / 3), P0 = [cx - L / 2, by], P1 = [cx + L / 2, by], P2 = [cx, by - h];
+    o += arrow(P0[0] - 14, by, P1[0] + 44, by, o0, 1.2) + text(P1[0] + 50, by, 'x', { size: 11, fill: o0 });
+    o += side(...P0, ...P1) + side(...P0, ...P2) + side(...P1, ...P2);
+    o += text(cx, by + 14, `1 (${fmt(m.th[0] / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
+    o += text(P0[0] + (P2[0] - P0[0]) / 2 - 24, by - h / 2, `2 (${fmt(m.th[1] / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
+    o += text(P1[0] + (P2[0] - P1[0]) / 2 + 26, by - h / 2, `3 (${fmt(m.th[2] / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
+    o += text(cx, by - h - 10, '60° each corner', { fill: o0, size: 10 });
+  } else {
+    o += arrow(cx - 10, cy, cx + L + 38, cy, o0, 1.2) + text(cx + L + 44, cy, 'x', { size: 11, fill: o0 });
+    m.th.forEach((t, i) => {
+      const ux = Math.cos(t), uy = -Math.sin(t);
+      o += side(cx, cy, cx + ux * L, cy + uy * L);
+      o += text(cx + ux * (L + 20), cy + uy * (L + 14) - (i === 0 && kind === 'rect' ? 8 : 0), `${i + 1} (${fmt(t / D2R, 0)}°)`, { fill: lc, bold: true, size: 11 });
+    });
+    o += `<circle cx="${cx}" cy="${cy}" r="3" fill="#1d2330"/>`;
+  }
   $('rosette').innerHTML = o;
 }
 function drawDerived(m) {
