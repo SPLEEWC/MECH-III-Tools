@@ -18,6 +18,12 @@
   .nav { margin: 0 0 8px; font-size: .85rem; }
   .nav a { color: var(--blue); text-decoration: none; }
   .nav a:hover { text-decoration: underline; }
+  .steps { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .steps button { min-width: 32px; }
+  .steps button.on { background: var(--orange); border-color: var(--orange); color: #fff; font-weight: 600; }
+  .mcctl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 4px; }
+  .mcctl label { display: flex; gap: 8px; align-items: center; }
+  .mcctl input[type=range] { width: 140px; }
   .sub { color: var(--mute); margin: 0; }
   main { max-width: 1200px; margin: 0 auto; padding: 12px 20px 40px;
          display: grid; grid-template-columns: 330px 1fr; gap: 16px; align-items: start; }
@@ -130,15 +136,15 @@
 
   <div class="stack">
     <section class="card">
-      <h2>Plane strain state &mdash; deformed element, strains &amp; stresses</h2>
-      <div class="toggles">
-        <label><input type="checkbox" id="tp" checked> Principal planes</label>
-        <label><input type="checkbox" id="ts" checked> Max shear planes</label>
-        <label><input type="checkbox" id="tj" checked> Joint</label>
+      <h2>McClintock construction</h2>
+      <div class="steps" id="mcsteps"></div>
+      <svg id="mc" viewBox="0 0 680 460" role="img" aria-label="McClintock construction of Mohr's circle for strain"></svg>
+      <p class="hint" id="mccap"></p>
+      <div class="mcctl">
+        <button id="mcprev" type="button">&larr; Previous</button>
+        <button id="mcnext" type="button">Next &rarr;</button>
+        <label>Arbitrary point O (height)<input type="range" id="mo" min="0" max="100" value="70"></label>
       </div>
-      <div class="elements" id="elements"></div>
-      <p class="hint">Green lines: principal planes P and Q; teal dash-dot lines: maximum shear planes S+ and S− (45° from them); purple dashed: joint. Dashed orange outline: deformed element, greatly exaggerated. Solid arrows: the corresponding stresses (blue = normal, red = shear). Shear strain &gamma; and shear stress are both <b>positive clockwise</b>.
-        Strains are in &micro;&epsilon; (10<sup>&minus;6</sup>); &gamma; in &micro;rad; stresses in N/mm².</p>
     </section>
 
     <section class="card">
@@ -329,102 +335,6 @@ function drawMohr(m) {
   });
 }
 
-/* ---------- stress element ---------- */
-function elementSVG(m, deg, strainScale) {
-  const s = stateAt(m, deg);
-  const W = 320, cx = W / 2, cy = W / 2, h = 46, L = 40;
-  const a = deg * D2R, ca = Math.cos(a), sa = Math.sin(a);
-  const P = (x, y) => [cx + x * ca - y * sa, cy - (x * sa + y * ca)];  // local (x',y') -> screen
-  const poly = (pts, attrs) => `<polygon points="${pts.map(p => P(...p).join(',')).join(' ')}" ${attrs}/>`;
-  const blue = '#1f6feb', red = '#d1344a', orange = '#e08a00';
-  let o = '';
-
-  // global axes hint
-  o += arrow(14, W - 16, 44, W - 16, '#8a93a3', 1.2) + arrow(14, W - 16, 14, W - 44, '#8a93a3', 1.2);
-  o += text(52, W - 16, 'x', { size: 11, fill: '#8a93a3' }) + text(14, W - 52, 'y', { size: 11, fill: '#8a93a3' });
-
-  // undeformed + deformed
-  o += poly([[-h, -h], [h, -h], [h, h], [-h, h]], 'fill="#eef2f8" stroke="#1d2330" stroke-width="1.6"');
-  const dl = s.g * strainScale / 2;
-  const def = ([x, y]) => [x * (1 + s.ex * strainScale) - y * dl, y * (1 + s.ey * strainScale) - x * dl];
-  const dpts = [[-h, -h], [h, -h], [h, h], [-h, h]].map(def);
-  o += poly(dpts, `fill="none" stroke="${orange}" stroke-width="2" stroke-dasharray="6 4"`);
-
-  // normal stresses
-  const nrm = (sig, nx, ny) => {
-    if (Math.abs(sig) < 1e-9) return '';
-    const f = [nx * h, ny * h], tip = [nx * (h + L), ny * (h + L)];
-    const [p0, p1] = sig > 0 ? [f, tip] : [tip, f];
-    return arrow(...P(...p0), ...P(...p1), blue);
-  };
-  o += nrm(s.sx, 1, 0) + nrm(s.sx, -1, 0) + nrm(s.sy, 0, 1) + nrm(s.sy, 0, -1);
-  const lab = (x, y, str, col) => { const [px, py] = P(x, y); return text(px, py, str, { fill: col, bold: true, size: 12 }); };
-  o += lab(h + L + 24, 0, `σx′ = ${fmt(s.sx)}`, blue);
-  o += lab(0, h + L + 12, `σy′ = ${fmt(s.sy)}`, blue);
-
-  // shear stresses (clockwise +)
-  if (Math.abs(s.t) > 1e-6 * Math.max(1, m.R)) {
-    const sg = Math.sign(s.t), q = 22, off = h + 9;
-    const sh = (cx_, cy_, dx, dy) => arrow(...P(cx_ - dx * q, cy_ - dy * q), ...P(cx_ + dx * q, cy_ + dy * q), red, 2);
-    o += sh(off, 0, 0, -sg) + sh(-off, 0, 0, sg) + sh(0, off, -sg, 0) + sh(0, -off, sg, 0);
-    o += lab(off + 30, -sg * (q + 6), `τ = ${fmt(Math.abs(s.t))}`, red);
-  }
-  // plane lines through the element centre; n = plane normal angle (deg, ccw from x)
-  const plane = (n, col, dash, label, w = 2.5, d = 74) => {
-    const r = (n + 90) * D2R - a, ux = Math.cos(r), uy = Math.sin(r);
-    const [p0x, p0y] = P(-ux * d, -uy * d), [p1x, p1y] = P(ux * d, uy * d);
-    return line(p0x, p0y, p1x, p1y, col, w, `stroke-dasharray="${dash}"`) +
-      (label ? text(p1x + ux * 18, p1y - uy * 14, label, { fill: col, bold: true, size: 11 }) : '');
-  };
-  const thPe = -m.phie / 2 / D2R;
-  if ($('tp').checked) {
-    o += plane(m.thP, '#1a8f5a', '2 0', 'P', 2) + plane(m.thP + 90, '#1a8f5a', '2 0', 'Q', 2);
-    if (Math.abs(thPe - m.thP) > 1e-6) o += plane(thPe, '#1a8f5a', '2 3', 'P\u03B5', 1.5);
-  }
-  if ($('ts').checked) o += plane(m.thP + 45, '#0e8a9b', '10 3 2 3', 'S+', 2) + plane(m.thP - 45, '#0e8a9b', '10 3 2 3', 'S\u2212', 2);
-  if ($('tj').checked) o += plane(joint(m).nAng, '#8e44ad', '8 4', 'Joint', 3);
-  return `<svg viewBox="0 0 ${W} ${W}">${o}</svg>`;
-}
-
-function stateTable(m, deg) {
-  const s = stateAt(m, deg), u = v => fmt(v * 1e6, 1);
-  return `<table>
-    <tr><td>σx′ (N/mm²)</td><td>${fmt(s.sx)}</td></tr>
-    <tr><td>σy′ (N/mm²)</td><td>${fmt(s.sy)}</td></tr>
-    <tr><td>τx′y′ (N/mm², cw +)</td><td>${fmt(s.t)}</td></tr>
-    <tr><td>εx′ (µε)</td><td>${u(s.ex)}</td></tr>
-    <tr><td>εy′ (µε)</td><td>${u(s.ey)}</td></tr>
-    <tr><td>γx′y′ (µrad, cw +)</td><td>${u(s.g)}</td></tr></table>`;
-}
-
-function maxTable(m) {
-  const u = v => fmt(v * 1e6, 1), thPe = -m.phie / 2 / D2R, n = normPlane;
-  const row = (q, v, pl, th) => `<tr><td>${q}</td><td>${v}</td><td>${pl}</td><td>${fmt(n(th))}\u00B0</td></tr>`;
-  return `<h3 style="margin-top:12px">Maximum values and their planes</h3><table>
-    <tr><th>Quantity</th><th>Value</th><th>Plane</th><th>Normal \u03B8 (ccw from x)</th></tr>
-    ${row('\u03C3p max principal stress (N/mm²)', fmt(m.c + m.R), 'P', m.thP)}
-    ${row('\u03C3q min principal stress (N/mm²)', fmt(m.c - m.R), 'Q', m.thP + 90)}
-    ${row('+\u03C4max (N/mm²)', fmt(m.R), 'S+', m.thP + 45)}
-    ${row('\u2212\u03C4max (N/mm²)', fmt(-m.R), 'S\u2212', m.thP - 45)}
-    ${row('\u03B5p max principal strain (\u00B5\u03B5)', u(m.ec + m.Re), 'P', thPe)}
-    ${row('\u03B5q min principal strain (\u00B5\u03B5)', u(m.ec - m.Re), 'Q', thPe + 90)}
-    ${row('+\u03B3max/2 (\u00B5rad)', u(m.Re), 'S+', thPe + 45)}
-    ${row('\u2212\u03B3max/2 (\u00B5rad)', u(-m.Re), 'S\u2212', thPe - 45)}</table>`;
-}
-function jointTable(m) {
-  const J = joint(m), s = J.st, u = v => fmt(v * 1e6, 1);
-  return `<h3 style="margin-top:12px;color:#8e44ad">Joint: ${fmt(J.alpha)}\u00B0 ${J.sgn > 0 ? 'counter-clockwise' : 'clockwise'} from ${J.ref}</h3><table>
-    <tr><td>Normal stress \u03C3 on joint (N/mm²)</td><td>${fmt(s.sx)}</td></tr>
-    <tr><td>Shear stress \u03C4 on joint (N/mm², cw +)</td><td>${fmt(s.t)}</td></tr>
-    <tr><td>Normal strain \u03B5 \u22A5 joint (\u00B5\u03B5)</td><td>${u(s.ex)}</td></tr>
-    <tr><td>Shear strain \u03B3 (\u00B5rad, cw +)</td><td>${u(s.g)}</td></tr></table>`;
-}
-function drawElements(m) {
-  const big = Math.max(Math.abs(m.ec) + m.Re, 2 * m.Re, 1e-12);
-  $('elements').innerHTML =
-    `<div class="el"><h3>Plane strain state (\u03B8 = 0\u00B0)</h3>${elementSVG(m, 0, 0.14 / big)}${stateTable(m, 0)}${maxTable(m)}${jointTable(m)}</div>`;
-}
-
 function drawReadings(m) {
   const J = joint(m), u = v => fmt(v * 1e6, 1), n = normPlane, S = m.thP;
   const g = (title, color, rows) => `<div><h3 style="color:${color}">${title}</h3><table>` +
@@ -456,6 +366,107 @@ function drawSummary(m) {
   $('summary').innerHTML = rows.map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join('');
 }
 
+/* ---------- McClintock construction ---------- */
+let mcStep = 6;
+const MC_STEPS = 6;
+function mcCaptions(m, a) {
+  const rect = Math.abs(a - 45) < 1e-6;
+  return [
+    'Draw a vertical line through each gauge reading &epsilon;<sub>1</sub>, &epsilon;<sub>2</sub>, &epsilon;<sub>3</sub> on a common &epsilon; scale. The heights are not known yet.',
+    'Choose any point O on the line of gauge 2 (the middle gauge). Move the slider to see that the result does not depend on where O is.',
+    `Through O draw two lines, each ${fmt(a, 0)}° from the vertical (the gauge spacing). They meet the gauge 1 line at A and the gauge 3 line at C.`,
+    rect ? 'For the rectangular rosette &ang;AOC = 90°, so AC is a diameter. Draw the circle through A, O and C; its centre is the mid-point of AC.'
+         : 'Draw the circle through A, O and C. Its centre gives the average strain and its radius the shear radius.',
+    'The horizontal line through the centre is the &epsilon; axis (&gamma;/2 = 0). Its crossings with the circle are the principal strains &epsilon;<sub>p</sub> and &epsilon;<sub>q</sub>.',
+    'Read the results: gauges 1, 2, 3 and the V and H points lie on the circle; the top and bottom of the circle give &plusmn;&gamma;<sub>max</sub>/2.'
+  ];
+}
+function drawMc(m) {
+  const svg = $('mc'), u = 1e6, s = mcStep;
+  const r = m.r.map(v => v * u), a = (m.th[1] - m.th[0]) / D2R, cot = 1 / Math.tan(a * D2R);
+  const span = Math.max(Math.abs(r[0] - r[2]), Math.abs(r[1] - r[0]), Math.abs(r[2] - r[1]), 2 * m.Re * u, 1);
+  const yO = (num('mo') / 100 - 0.5) * 1.2 * span;
+  const O = [r[1], yO], A = [r[0], yO + (r[0] - r[1]) * cot], C = [r[2], yO - (r[2] - r[1]) * cot];
+  // circle through A, O, C
+  const d = 2 * (A[0] * (O[1] - C[1]) + O[0] * (C[1] - A[1]) + C[0] * (A[1] - O[1]));
+  let ux, uy, R;
+  if (Math.abs(d) < 1e-9 * span * span) { ux = m.ec * u; uy = yO; R = m.Re * u; }
+  else {
+    const sq = P => P[0] * P[0] + P[1] * P[1];
+    ux = (sq(A) * (O[1] - C[1]) + sq(O) * (C[1] - A[1]) + sq(C) * (A[1] - O[1])) / d;
+    uy = (sq(A) * (C[0] - O[0]) + sq(O) * (A[0] - C[0]) + sq(C) * (O[0] - A[0])) / d;
+    R = Math.hypot(A[0] - ux, A[1] - uy);
+  }
+  // fixed bounds so the picture does not jump between steps
+  const xs = [...r, ux - R, ux + R, 0], ys = [uy - R, uy + R, yO, A[1], C[1]];
+  let xlo = Math.min(...xs), xhi = Math.max(...xs), ylo = Math.min(...ys), yhi = Math.max(...ys);
+  const px = 0.1 * (xhi - xlo || 1), py = 0.12 * (yhi - ylo || 1);
+  xlo -= px; xhi += px; ylo -= py + 0.06 * (yhi - ylo); yhi += py + 0.06 * (yhi - ylo);
+  const W = Math.max(300, Math.min(680, Math.round(svg.getBoundingClientRect().width) || 680));
+  const H = Math.round(Math.min(520, Math.max(300, W * 0.72)));
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const k = Math.min(W / (xhi - xlo), H / (yhi - ylo));
+  const X = v => W / 2 + (v - (xlo + xhi) / 2) * k, Y = v => H / 2 - (v - (ylo + yhi) / 2) * k;
+  const orange = '#e08a00', blue = '#1f6feb', green = '#1a8f5a', teal = '#0e8a9b', ink = '#1d2330';
+  const dot = (P, col, fill = col) => `<circle cx="${X(P[0])}" cy="${Y(P[1])}" r="5" fill="${fill}" stroke="${col}" stroke-width="2"/>`;
+  let o = '';
+
+  // step 1: gauge lines on an ε scale
+  const yb = H - 34;
+  o += line(10, yb, W - 10, yb, '#8a93a3', 1.2);
+  r.forEach((v, i) => {
+    o += line(X(v), 40, X(v), yb + 5, orange, 2, 'stroke-dasharray="6 4"');
+    o += text(X(v), 14 + (i % 2) * 14, `ε${'₁₂₃'[i]} = ${fmt(v, 1)}`, { fill: '#b36b00', bold: true, size: 12 });
+    o += text(X(v), yb + 14 + (i % 2) * 12, `gauge ${i + 1} (${fmt(m.th[i] / D2R, 0)}°)`, { fill: '#b36b00', size: 10 });
+  });
+  // step 2: arbitrary point O
+  if (s >= 2) { o += dot(O, blue, '#fff') + (s < 6 ? text(X(O[0]) + 12, Y(O[1]) - 10, 'O', { fill: blue, bold: true, size: 13 }) : ''); }
+  // step 3: construction lines to A and C
+  if (s >= 3) {
+    o += line(X(A[0]), Y(A[1]), X(O[0]), Y(O[1]), blue, 1.8) + line(X(O[0]), Y(O[1]), X(C[0]), Y(C[1]), blue, 1.8);
+    o += dot(A, blue) + (s < 6 ? text(X(A[0]) - 12, Y(A[1]) - 10, 'A', { fill: blue, bold: true, size: 13 }) : '');
+    o += dot(C, blue) + (s < 6 ? text(X(C[0]) + 12, Y(C[1]) + 12, 'C', { fill: blue, bold: true, size: 13 }) : '');
+    if (s < 6) { const lab = (P, sg) => text(X(O[0]) + sg * 26, Y(O[1]) + (P[1] > O[1] ? -22 : 24), `${fmt(a, 0)}°`, { fill: blue, size: 11 });
+    o += lab(A, Math.sign(A[0] - O[0]) || -1) + lab(C, Math.sign(C[0] - O[0]) || 1); }
+  }
+  // step 4: circle through A, O, C
+  if (s >= 4) {
+    o += `<circle cx="${X(ux)}" cy="${Y(uy)}" r="${Math.max(R * k, 0.5)}" fill="${blue}" fill-opacity=".06" stroke="${ink}" stroke-width="1.8"/>`;
+    o += `<circle cx="${X(ux)}" cy="${Y(uy)}" r="3.5" fill="${ink}"/>` + text(X(ux) - 10, Y(uy) + 14, 'C', { bold: true, size: 12 });
+    if (Math.abs(a - 45) < 1e-6) o += line(X(A[0]), Y(A[1]), X(C[0]), Y(C[1]), '#8a93a3', 1.3, 'stroke-dasharray="5 3"');
+  }
+  // step 5: true ε axis through the centre
+  if (s >= 5) {
+    o += arrow(10, Y(uy), W - 6, Y(uy), ink, 1.4) + text(W - 8, Y(uy) - 12, 'ε (µε)', { bold: true, anchor: 'end', size: 13 });
+    o += arrow(X(0), H - 8, X(0), 8, ink, 1.1) + text(X(0) + 10, 14, 'γ/2', { bold: true, anchor: 'start', size: 12 });
+    [[ux + R, 'εp', 12], [ux - R, 'εq', 12]].forEach(([v, n, dy]) => {
+      o += `<circle cx="${X(v)}" cy="${Y(uy)}" r="4.5" fill="${green}"/>` + text(X(v), Y(uy) + 18, `${n} = ${fmt(v, 1)}`, { fill: green, bold: true, size: 12 });
+    });
+  }
+  // step 6: gauges, V/H and max shear points (heights relative to the true axis)
+  if (s >= 6) {
+    const P = (x, t) => [x, uy + t];
+    const V = P(m.ex * u, m.e * u), Hh = P(m.ey * u, -m.e * u);
+    o += line(X(V[0]), Y(V[1]), X(Hh[0]), Y(Hh[1]), '#8a93a3', 1.3, 'stroke-dasharray="5 3"');
+    o += dot(V, blue) + text(X(V[0]) + 14, Y(V[1]) - 10, `V(${fmt(V[0], 1)}, ${fmt(V[1] - uy, 1)})`, { fill: blue, bold: true, size: 11 });
+    o += dot(Hh, '#d1344a') + text(X(Hh[0]) - 14, Y(Hh[1]) + 12, `H(${fmt(Hh[0], 1)}, ${fmt(Hh[1] - uy, 1)})`, { fill: '#d1344a', bold: true, size: 11 });
+    m.th.forEach((t, i) => {
+      const g = stateAt(m, t / D2R), G = P(g.ex * u, g.g / 2 * u);
+      o += dot(G, orange, '#fff') + text(X(G[0]) + 12, Y(G[1]) + (i === 1 ? -12 : 14), `${i + 1}`, { fill: '#b36b00', bold: true, size: 12 });
+    });
+    [[R, '+'], [-R, '−']].forEach(([t, sg]) => {
+      const T = P(ux, t);
+      o += `<circle cx="${X(T[0])}" cy="${Y(T[1])}" r="4.5" fill="${teal}"/>` +
+        text(X(T[0]), Y(T[1]) + (t > 0 ? -12 : 14), `${sg}γmax/2 = ${sg === '+' ? '' : '−'}${fmt(R, 1)}`.replace('= −−', '= −'), { fill: teal, bold: true, size: 11 });
+    });
+  }
+  svg.innerHTML = o;
+  $('mccap').innerHTML = `<b>Step ${s}.</b> ` + mcCaptions(m, a)[s - 1];
+  $('mcsteps').innerHTML = Array.from({ length: MC_STEPS }, (_, i) =>
+    `<button type="button" data-s="${i + 1}" class="${i + 1 === s ? 'on' : ''}">${i + 1}</button>`).join('');
+  $('mcprev').disabled = s <= 1; $('mcnext').disabled = s >= MC_STEPS;
+}
+
 /* ---------- rosette diagram ---------- */
 function drawRosette(m) {
   const cx = 120, cy = 80, L = 62, o0 = '#8a93a3';
@@ -480,11 +491,14 @@ function update() {
   drawRosette(m);
   drawDerived(m);
   drawMohr(m);
-  drawElements(m);
+  drawMc(m);
   drawReadings(m);
   drawSummary(m);
 }
-['rs', 'g1', 'g2', 'g3', 'E', 'nu', 'ja', 'jr', 'jd', 'tp', 'ts', 'tj'].forEach(id => $(id).addEventListener('input', update));
+['rs', 'g1', 'g2', 'g3', 'E', 'nu', 'ja', 'jr', 'jd', 'mo'].forEach(id => $(id).addEventListener('input', update));
+$('mcprev').addEventListener('click', () => { mcStep = Math.max(1, mcStep - 1); update(); });
+$('mcnext').addEventListener('click', () => { mcStep = Math.min(MC_STEPS, mcStep + 1); update(); });
+$('mcsteps').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { mcStep = +b.dataset.s; update(); } });
 window.addEventListener('resize', update);
 update();
 </script>
