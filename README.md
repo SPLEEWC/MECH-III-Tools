@@ -1,11 +1,27 @@
-# Mohr's Circle – 2D Plane Stress
+# MECH III Tools
 
-Interactive single-page tool (plain HTML/JS, no build step).
+Interactive single-page tools (plain HTML/JS, no build step).
+
+| Page | Tool |
+| --- | --- |
+| `index.html` | Home page linking to the tools |
+| `stress.html` | Mohr's circle for 2D plane **stress** |
+| `strain.html` | Mohr's circle for 2D plane **strain** |
+
+## Mohr's circle – stress
 
 - Input the **V** (vertical face) and **H** (horizontal face) coordinates (σ, τ).
 - Draws Mohr's circle, principal stresses and max shear.
-- Shows 2D plane stress elements (at 0°) with normal stresses and strains.
-- Input E and ν to get ε, γ. **Shear stress and shear strain are positive clockwise.**
+- Shows 2D plane stress elements with normal stresses and strains.
+- Input E and ν to get ε, γ.
+
+## Mohr's circle – strain
+
+- Input the **V** and **H** coordinates (ε, γ/2) in µε.
+- Draws Mohr's circle, principal strains and max shear strain.
+- Shows the deformed element, and the corresponding stresses from E and ν (plane stress).
+
+**Shear stress and shear strain are positive clockwise** in both tools.
 
 ## Host on GitHub Pages
 
