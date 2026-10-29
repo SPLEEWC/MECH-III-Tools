@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mohr's Circle for Plane Stress</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --ink: #1d2330; --mute: #5b6475; --line: #d9dde5;
+    --blue: #1f6feb; --red: #d1344a; --green: #1a8f5a; --orange: #e08a00; --grid: #e9ecf1;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 18px 20px 6px; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  .nav { margin: 0 0 8px; font-size: .85rem; }
+  .nav a { color: var(--blue); text-decoration: none; }
+  .nav a:hover { text-decoration: underline; }
+  .sub { color: var(--mute); margin: 0; }
+  main { max-width: 1200px; margin: 0 auto; padding: 12px 20px 40px;
+         display: grid; grid-template-columns: 330px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .stack > .card + .card { margin-top: 16px; }
+  fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+  legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  label { display: block; font-size: .85rem; color: var(--mute); }
+  .reads { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 24px; }
+  .reads h3 { margin: 0 0 2px; font-size: .95rem; }
+  .toggles { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: -4px 0 4px; }
+  .toggles label { display: inline-flex; gap: 5px; align-items: center; color: var(--ink); }
+  select { width: 100%; padding: 6px 8px; font: inherit; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); }
+  input[type=number] { width: 100%; padding: 6px 8px; font: inherit; border: 1px solid var(--line);
+                       border-radius: 6px; background: #fff; color: var(--ink); }
+  input[type=number]:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
+  input[type=range] { width: 100%; }
+  .warn { background: #fff4e0; border: 1px solid #f0c978; color: #7a4d00; border-radius: 6px;
+          padding: 6px 8px; font-size: .85rem; margin: 6px 0 0; display: none; }
+  .warn button { margin-left: 6px; }
+  button { font: inherit; font-size: .85rem; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+           border: 1px solid var(--line); background: #fff; }
+  button:hover { border-color: var(--blue); }
+  .hint { font-size: .82rem; color: var(--mute); margin: 6px 0 0; }
+  svg { display: block; width: 100%; height: auto; }
+  .elements { max-width: 560px; margin: 0 auto; }
+  .el h3 { margin: 0; font-size: .95rem; text-align: center; }
+  table { border-collapse: collapse; width: 100%; font-size: .85rem; margin-top: 4px; }
+  td, th { padding: 2px 6px; border-bottom: 1px solid var(--grid); text-align: right; }
+  td:first-child, th:first-child { text-align: left; color: var(--mute); }
+  .res { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 24px; }
+  .res div { display: flex; justify-content: space-between; border-bottom: 1px solid var(--grid); padding: 2px 0; }
+  .res span:first-child { color: var(--mute); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .82rem; color: var(--mute); margin-top: 6px; }
+  .sw { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 5px; }
+  ol { padding-left: 1.2em; margin: 4px 0 0; }
+  li { margin: 2px 0; }
+</style>
+</head>
+<body>
+<header>
+  <p class="nav"><a href="index.html">&larr; All tools</a> &middot; <a href="strain.html">Mohr's circle for strain</a></p>
+  <h1>Mohr's Circle &mdash; 2D Plane Stress</h1>
+  <p class="sub">Enter the coordinates of points V and H, then see the plane stress state with its normal stresses and strains.</p>
+</header>
+
+<main>
+  <div class="stack">
+    <section class="card">
+      <h2>Inputs</h2>
+      <fieldset>
+        <legend>V point &mdash; vertical face</legend>
+        <div class="row">
+          <label>&sigma; (normal)<input type="number" id="vs" value="80" step="any"></label>
+          <label>&tau; (shear)<input type="number" id="vt" value="40" step="any"></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>H point &mdash; horizontal face</legend>
+        <div class="row">
+          <label>&sigma; (normal)<input type="number" id="hs" value="20" step="any"></label>
+          <label>&tau; (shear)<input type="number" id="ht" value="-40" step="any"></label>
+        </div>
+      </fieldset>
+      <div class="warn" id="warn">
+        Shear on V and H must be equal in size and opposite in sign (&tau;<sub>H</sub> = &minus;&tau;<sub>V</sub>).
+        The average is being used.
+        <button id="fix" type="button">Set H = &minus;V</button>
+      </div>
+      <p class="hint">Stress in N/mm². Shear &tau; is <b>positive when it turns the element clockwise</b>, and is plotted upward.</p>
+    </section>
+
+    <section class="card">
+      <h2>Joint</h2>
+      <label>Angle from reference plane (degrees)
+        <input type="number" id="ja" value="30" min="0" max="180" step="any">
+      </label>
+      <div class="row" style="margin-top:8px">
+        <label>Reference plane
+          <select id="jr"><option value="V">V (vertical)</option><option value="H">H (horizontal)</option></select>
+        </label>
+        <label>Direction of joint
+          <select id="jd"><option value="ccw">Counter-clockwise</option><option value="cw">Clockwise</option></select>
+        </label>
+      </div>
+      <p class="hint">The joint plane is the reference plane rotated by the angle in the chosen direction. Its stresses are the point rotated by 2&times;angle the same way on the circle.</p>
+    </section>
+
+    <section class="card">
+      <h2>Material (for strains)</h2>
+      <div class="row">
+        <label>E (GPa)<input type="number" id="E" value="200" min="0" step="any"></label>
+        <label>Poisson's ratio &nu;<input type="number" id="nu" value="0.3" step="any"></label>
+      </div>
+      <p class="hint">Plane stress, linear-elastic, isotropic. G = E / (2(1+&nu;)).</p>
+    </section>
+
+    <section class="card">
+      <h2>How to read it</h2>
+      <ol>
+        <li>Plot V(&sigma;<sub>V</sub>, &tau;<sub>V</sub>) and H(&sigma;<sub>H</sub>, &tau;<sub>H</sub>); join them &mdash; that line is a diameter.</li>
+        <li>Centre C = (&sigma;<sub>V</sub>+&sigma;<sub>H</sub>)/2, radius R = distance C&ndash;V.</li>
+        <li>Principal stresses &sigma;<sub>1,2</sub> = C &plusmn; R (where &tau; = 0).</li>
+        <li>Max in-plane shear = R, at &sigma; = C.</li>
+      </ol>
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <h2>Plane stress state &mdash; normal stresses &amp; strains</h2>
+      <div class="toggles">
+        <label><input type="checkbox" id="tp" checked> Principal planes</label>
+        <label><input type="checkbox" id="ts" checked> Max shear planes</label>
+        <label><input type="checkbox" id="tj" checked> Joint</label>
+      </div>
+      <div class="elements" id="elements"></div>
+      <p class="hint">Green lines: principal planes P and Q; teal dash-dot lines: maximum shear planes S+ and S− (45° from them); purple dashed: joint. Solid arrows: stress (blue = normal, red = shear). Dashed orange outline: deformed element,
+        greatly exaggerated. Shear stress and shear strain &gamma; are both <b>positive clockwise</b>.
+        Strains are in &micro;&epsilon; (10<sup>&minus;6</sup>); &gamma; in &micro;rad.</p>
+    </section>
+
+    <section class="card">
+      <h2>Mohr's circle</h2>
+      <svg id="mohr" viewBox="0 0 680 520" role="img" aria-label="Mohr's circle"></svg>
+      <div class="legend">
+        <span><span class="sw" style="border-color:var(--blue)"></span>V (vertical face)</span>
+        <span><span class="sw" style="border-color:var(--red)"></span>H (horizontal face)</span>
+        <span><span class="sw" style="border-color:var(--green)"></span>Max normal (principal)</span>
+        <span><span class="sw" style="border-color:#0e8a9b"></span>Max shear</span>
+        <span><span class="sw" style="border-color:#8e44ad"></span>Joint (J)</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Stress readings</h2>
+      <div class="reads" id="readings"></div>
+    </section>
+
+    <section class="card">
+      <h2>Summary</h2>
+      <div class="res" id="summary"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const D2R = Math.PI / 180;
+const NS = 'http://www.w3.org/2000/svg';
+
+function num(id) { const v = parseFloat($(id).value); return isFinite(v) ? v : 0; }
+function fmt(x, d = 2) {
+  if (Math.abs(x) < 5e-10) x = 0;
+  return (+x.toFixed(d)).toString().replace('-', '−');
+}
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+/* ---------- model ---------- */
+function model() {
+  const sx = num('vs'), sy = num('hs');
+  const tV = num('vt'), tH = num('ht');
+  const t = (tV - tH) / 2;                         // shear on vertical face, clockwise +
+  const E = Math.max(num('E'), 1e-9), nu = num('nu');
+  const c = (sx + sy) / 2, d = (sx - sy) / 2;
+  const R = Math.hypot(d, t), phi = Math.atan2(t, d);
+  const Ek = E * 1000;                              // N/mm²
+  const G = Ek / (2 * (1 + nu));
+  const ex = (sx - nu * sy) / Ek, ey = (sy - nu * sx) / Ek, g = t / G;
+  const ec = (ex + ey) / 2, de = (ex - ey) / 2;
+  const Re = Math.hypot(de, g / 2), phie = Math.atan2(g / 2, de);
+  const thP = -phi / 2 / D2R;                       // principal angle, deg (ccw +)
+  return { sx, sy, t, tV, tH, E, nu, G, c, R, phi, ex, ey, g, ec, Re, phie,
+           ez: -nu * (sx + sy) / Ek, thP, thS: thP + 45 };
+}
+function stateAt(m, deg) {
+  const a = m.phi + 2 * deg * D2R, ae = m.phie + 2 * deg * D2R;
+  return { deg, sx: m.c + m.R * Math.cos(a), sy: m.c - m.R * Math.cos(a), t: m.R * Math.sin(a),
+           ex: m.ec + m.Re * Math.cos(ae), ey: m.ec - m.Re * Math.cos(ae), g: 2 * m.Re * Math.sin(ae) };
+}
+
+function joint(m) {
+  const alpha = Math.max(0, Math.min(180, num('ja')));
+  const ref = $('jr').value, sgn = $('jd').value === 'cw' ? -1 : 1;
+  const nAng = (ref === 'V' ? 0 : 90) + sgn * alpha;      // normal of joint plane, deg ccw from x
+  const a0 = m.phi + (ref === 'V' ? 0 : Math.PI);
+  return { alpha, ref, sgn, nAng, a0, a1: a0 + sgn * 2 * alpha * D2R, st: stateAt(m, nAng) };
+}
+
+/* ---------- svg helpers ---------- */
+const el = (tag, attrs, inner) =>
+  `<${tag} ${Object.entries(attrs).map(([k, v]) => `${k}="${v}"`).join(' ')}>${inner ?? ''}</${tag}>`;
+const line = (x1, y1, x2, y2, stroke, w = 1, extra = '') =>
+  `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${w}" ${extra}/>`;
+const text = (x, y, s, o = {}) =>
+  `<text x="${x}" y="${y}" font-size="${o.size || 12}" fill="${o.fill || '#1d2330'}" text-anchor="${o.anchor || 'middle'}"
+     dominant-baseline="${o.base || 'middle'}" ${o.bold ? 'font-weight="600"' : ''}>${s}</text>`;
+function arrow(x1, y1, x2, y2, color, w = 2.2) {
+  const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, hl = 8, hw = 4;
+  const bx = x2 - ux * hl, by = y2 - uy * hl;
+  return line(x1, y1, bx, by, color, w) +
+    `<polygon points="${x2},${y2} ${bx - uy * hw},${by + ux * hw} ${bx + uy * hw},${by - ux * hw}" fill="${color}"/>`;
+}
+function niceStep(raw) {
+  const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p;
+}
+
+/* ---------- Mohr circle ---------- */
+const normPlane = a => { while (a > 90) a -= 180; while (a <= -90) a += 180; return a; };
+
+function drawCircle(id, q) {
+  const svg = $(id);
+  const W = Math.max(300, Math.min(680, Math.round(svg.getBoundingClientRect().width) || 680));
+  const H = Math.round(Math.min(520, W * 0.95)), mg = W < 500 ? 30 : 46;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const { c, R, phi } = q;
+  const pad = 0.28 * Math.max(R, 1);
+  let xlo = c - R - pad, xhi = c + R + pad;
+  if (Math.abs(c) <= 3 * R + 1) { xlo = Math.min(xlo, -pad); xhi = Math.max(xhi, pad); }
+  const yr = Math.max(R, 1) * 1.3;
+  const k = Math.min((W - 2 * mg) / (xhi - xlo), (H - 2 * mg) / (2 * yr));
+  const ox = W / 2 - k * (xlo + xhi) / 2, oy = H / 2;
+  const X = v => ox + v * k, Y = t => oy - t * k;
+  const green = '#1a8f5a', teal = '#0e8a9b', purple = '#8e44ad';
+
+  let o = '';
+  const step = niceStep((xhi - xlo) / 8);
+  for (let v = Math.ceil((-ox / k) / step) * step; X(v) <= W; v += step) {
+    o += line(X(v), 0, X(v), H, '#e9ecf1');
+    if (Math.abs(v) > step / 1e3) o += text(X(v), oy + 12, fmt(v, 6), { size: 10, fill: '#8a93a3' });
+  }
+  for (let t = Math.ceil(((oy - H) / k) / step) * step; Y(t) >= 0; t += step) {
+    o += line(0, Y(t), W, Y(t), '#e9ecf1');
+    if (Math.abs(t) > step / 1e3) o += text(8, Y(t), fmt(t, 6), { size: 10, fill: '#8a93a3', anchor: 'start' });
+  }
+  o += arrow(10, oy, W - 6, oy, '#1d2330', 1.3);
+  o += text(W - 8, oy - 12, q.xl, { size: 13, bold: true, anchor: 'end' });
+  const ax = Math.min(Math.max(X(0), 24), W - 24);
+  o += arrow(ax, H - 6, ax, 8, '#1d2330', 1.3);
+  o += text(ax + 14, 14, q.yl, { size: 12, bold: true, anchor: 'start' });
+
+  o += `<circle cx="${X(c)}" cy="${oy}" r="${Math.max(R * k, 0.5)}" fill="#1f6feb" fill-opacity=".06" stroke="#1d2330" stroke-width="1.6"/>`;
+
+  // maximum normal (principal) points and their planes
+  [[c + R, q.p1, q.thP, 'P'], [c - R, q.p2, q.thP + 90, 'Q']].forEach(([v, n, th, pl]) => {
+    o += `<circle cx="${X(v)}" cy="${oy}" r="4.5" fill="${green}"/>`;
+    o += text(X(v), oy + 28, `${n} = ${fmt(v)}`, { fill: green, bold: true });
+    o += text(X(v), oy + 42, `plane ${pl}: θ = ${fmt(normPlane(th))}°`, { fill: green, size: 10 });
+  });
+  // maximum shear points and their planes
+  [[R, q.mx, q.thP + 45, -13, 'S+'], [-R, '−' + q.mx, q.thP - 45, 14, 'S−']].forEach(([t, n, th, dy, pl]) => {
+    o += `<circle cx="${X(c)}" cy="${Y(t)}" r="4.5" fill="${teal}"/>`;
+    o += text(X(c), Y(t) + dy * (dy < 0 ? 2 : 1), `${n} = ${fmt(R)}`, { fill: teal, bold: true, size: 11 });
+    o += text(X(c), Y(t) + dy * (dy < 0 ? 1 : 2), `plane ${pl}: θ = ${fmt(normPlane(th))}°`, { fill: teal, size: 10 });
+  });
+  o += `<circle cx="${X(c)}" cy="${oy}" r="3" fill="#1d2330"/>`;
+  o += text(X(c) - 9, oy + 10, 'C', { size: 12, bold: true });
+
+  const arc = (a0, a1, r, col, label, dash) => {
+    if (Math.abs(a1 - a0) < 1e-9) return '';
+    const pp = a => `${X(c) + r * Math.cos(a)} ${oy - r * Math.sin(a)}`;
+    const am = (a0 + a1) / 2, lr = r + 17;
+    return `<path d="M ${pp(a0)} A ${r} ${r} 0 ${Math.abs(a1 - a0) > Math.PI ? 1 : 0} ${a1 - a0 > 0 ? 0 : 1} ${pp(a1)}"
+              fill="none" stroke="${col}" stroke-width="1.6" ${dash ? 'stroke-dasharray="4 3"' : ''}/>` +
+      text(X(c) + lr * Math.cos(am), oy - lr * Math.sin(am), label, { fill: col, size: 11, bold: true });
+  };
+  const rA = Math.max(R * k, 30);
+  o += arc(phi, 0, rA * 0.28, green, `2θp = ${fmt(2 * q.thP)}°`, true);
+  o += arc(phi, Math.PI / 2, rA * 0.42, teal, `2θs = ${fmt(2 * q.thP + 90)}°`, true);
+
+  o += line(X(q.V[0]), Y(q.V[1]), X(q.H[0]), Y(q.H[1]), '#8a93a3', 1.4, 'stroke-dasharray="5 3"');
+
+  const pt = (px, py, col, lab) => {
+    const ux = px - X(c), uy = py - oy, L = Math.hypot(ux, uy) || 1;
+    return `<circle cx="${px}" cy="${py}" r="6" fill="${col}" stroke="#fff" stroke-width="1.5"/>` +
+      text(px + ux / L * 24, py + uy / L * 18, lab, { fill: col, bold: true, size: 12 });
+  };
+  const J = q.J;
+  o += arc(J.a0, J.a1, rA * (J.ref === 'V' ? 0.58 : 0.72), purple, `2α = ${fmt(2 * J.alpha)}° ${J.sgn > 0 ? 'ccw' : 'cw'}`, false);
+  o += line(X(c), oy, X(J.pt[0]), Y(J.pt[1]), purple, 2);
+  o += pt(X(J.pt[0]), Y(J.pt[1]), purple, `J(${fmt(J.pt[0])}, ${fmt(J.pt[1])})`);
+  o += pt(X(q.V[0]), Y(q.V[1]), '#1f6feb', `V(${fmt(q.V[0])}, ${fmt(q.V[1])})`);
+  o += pt(X(q.H[0]), Y(q.H[1]), '#d1344a', `H(${fmt(q.H[0])}, ${fmt(q.H[1])})`);
+  svg.innerHTML = o;
+}
+
+function drawMohr(m) {
+  const J = joint(m), u = 1e6;
+  drawCircle('mohr', {
+    c: m.c, R: m.R, phi: m.phi, thP: m.thP, xl: 'σ (N/mm²)', yl: 'τ (N/mm², clockwise +)',
+    p1: 'σp', p2: 'σq', mx: 'τmax',
+    V: [m.sx, m.t], H: [m.sy, -m.t], J: { ...J, pt: [J.st.sx, J.st.t] }
+  });
+}
+
+/* ---------- stress element ---------- */
+function elementSVG(m, deg, strainScale) {
+  const s = stateAt(m, deg);
+  const W = 320, cx = W / 2, cy = W / 2, h = 46, L = 40;
+  const a = deg * D2R, ca = Math.cos(a), sa = Math.sin(a);
+  const P = (x, y) => [cx + x * ca - y * sa, cy - (x * sa + y * ca)];  // local (x',y') -> screen
+  const poly = (pts, attrs) => `<polygon points="${pts.map(p => P(...p).join(',')).join(' ')}" ${attrs}/>`;
+  const blue = '#1f6feb', red = '#d1344a', orange = '#e08a00';
+  let o = '';
+
+  // global axes hint
+  o += arrow(14, W - 16, 44, W - 16, '#8a93a3', 1.2) + arrow(14, W - 16, 14, W - 44, '#8a93a3', 1.2);
+  o += text(52, W - 16, 'x', { size: 11, fill: '#8a93a3' }) + text(14, W - 52, 'y', { size: 11, fill: '#8a93a3' });
+
+  // undeformed + deformed
+  o += poly([[-h, -h], [h, -h], [h, h], [-h, h]], 'fill="#eef2f8" stroke="#1d2330" stroke-width="1.6"');
+  const dl = s.g * strainScale / 2;
+  const def = ([x, y]) => [x * (1 + s.ex * strainScale) - y * dl, y * (1 + s.ey * strainScale) - x * dl];
+  const dpts = [[-h, -h], [h, -h], [h, h], [-h, h]].map(def);
+  o += poly(dpts, `fill="none" stroke="${orange}" stroke-width="2" stroke-dasharray="6 4"`);
+
+  // normal stresses
+  const nrm = (sig, nx, ny) => {
+    if (Math.abs(sig) < 1e-9) return '';
+    const f = [nx * h, ny * h], tip = [nx * (h + L), ny * (h + L)];
+    const [p0, p1] = sig > 0 ? [f, tip] : [tip, f];
+    return arrow(...P(...p0), ...P(...p1), blue);
+  };
+  o += nrm(s.sx, 1, 0) + nrm(s.sx, -1, 0) + nrm(s.sy, 0, 1) + nrm(s.sy, 0, -1);
+  const lab = (x, y, str, col) => { const [px, py] = P(x, y); return text(px, py, str, { fill: col, bold: true, size: 12 }); };
+  o += lab(h + L + 24, 0, `σx′ = ${fmt(s.sx)}`, blue);
+  o += lab(0, h + L + 12, `σy′ = ${fmt(s.sy)}`, blue);
+
+  // shear stresses (clockwise +)
+  if (Math.abs(s.t) > 1e-6 * Math.max(1, m.R)) {
+    const sg = Math.sign(s.t), q = 22, off = h + 9;
+    const sh = (cx_, cy_, dx, dy) => arrow(...P(cx_ - dx * q, cy_ - dy * q), ...P(cx_ + dx * q, cy_ + dy * q), red, 2);
+    o += sh(off, 0, 0, -sg) + sh(-off, 0, 0, sg) + sh(0, off, -sg, 0) + sh(0, -off, sg, 0);
+    o += lab(off + 30, -sg * (q + 6), `τ = ${fmt(Math.abs(s.t))}`, red);
+  }
+  // plane lines through the element centre; n = plane normal angle (deg, ccw from x)
+  const plane = (n, col, dash, label, w = 2.5, d = 74) => {
+    const r = (n + 90) * D2R - a, ux = Math.cos(r), uy = Math.sin(r);
+    const [p0x, p0y] = P(-ux * d, -uy * d), [p1x, p1y] = P(ux * d, uy * d);
+    return line(p0x, p0y, p1x, p1y, col, w, `stroke-dasharray="${dash}"`) +
+      (label ? text(p1x + ux * 18, p1y - uy * 14, label, { fill: col, bold: true, size: 11 }) : '');
+  };
+  const thPe = -m.phie / 2 / D2R;
+  if ($('tp').checked) {
+    o += plane(m.thP, '#1a8f5a', '2 0', 'P', 2) + plane(m.thP + 90, '#1a8f5a', '2 0', 'Q', 2);
+    if (Math.abs(thPe - m.thP) > 1e-6) o += plane(thPe, '#1a8f5a', '2 3', 'P\u03B5', 1.5);
+  }
+  if ($('ts').checked) o += plane(m.thP + 45, '#0e8a9b', '10 3 2 3', 'S+', 2) + plane(m.thP - 45, '#0e8a9b', '10 3 2 3', 'S\u2212', 2);
+  if ($('tj').checked) o += plane(joint(m).nAng, '#8e44ad', '8 4', 'Joint', 3);
+  return `<svg viewBox="0 0 ${W} ${W}">${o}</svg>`;
+}
+
+function stateTable(m, deg) {
+  const s = stateAt(m, deg), u = v => fmt(v * 1e6, 1);
+  return `<table>
+    <tr><td>σx′ (N/mm²)</td><td>${fmt(s.sx)}</td></tr>
+    <tr><td>σy′ (N/mm²)</td><td>${fmt(s.sy)}</td></tr>
+    <tr><td>τx′y′ (N/mm², cw +)</td><td>${fmt(s.t)}</td></tr>
+    <tr><td>εx′ (µε)</td><td>${u(s.ex)}</td></tr>
+    <tr><td>εy′ (µε)</td><td>${u(s.ey)}</td></tr>
+    <tr><td>γx′y′ (µrad, cw +)</td><td>${u(s.g)}</td></tr></table>`;
+}
+
+function maxTable(m) {
+  const u = v => fmt(v * 1e6, 1), thPe = -m.phie / 2 / D2R, n = normPlane;
+  const row = (q, v, pl, th) => `<tr><td>${q}</td><td>${v}</td><td>${pl}</td><td>${fmt(n(th))}\u00B0</td></tr>`;
+  return `<h3 style="margin-top:12px">Maximum values and their planes</h3><table>
+    <tr><th>Quantity</th><th>Value</th><th>Plane</th><th>Normal \u03B8 (ccw from x)</th></tr>
+    ${row('\u03C3p max principal stress (N/mm²)', fmt(m.c + m.R), 'P', m.thP)}
+    ${row('\u03C3q min principal stress (N/mm²)', fmt(m.c - m.R), 'Q', m.thP + 90)}
+    ${row('+\u03C4max (N/mm²)', fmt(m.R), 'S+', m.thP + 45)}
+    ${row('\u2212\u03C4max (N/mm²)', fmt(-m.R), 'S\u2212', m.thP - 45)}
+    ${row('\u03B5p max principal strain (\u00B5\u03B5)', u(m.ec + m.Re), 'P', thPe)}
+    ${row('\u03B5q min principal strain (\u00B5\u03B5)', u(m.ec - m.Re), 'Q', thPe + 90)}
+    ${row('+\u03B3max/2 (\u00B5rad)', u(m.Re), 'S+', thPe + 45)}
+    ${row('\u2212\u03B3max/2 (\u00B5rad)', u(-m.Re), 'S\u2212', thPe - 45)}</table>`;
+}
+function jointTable(m) {
+  const J = joint(m), s = J.st, u = v => fmt(v * 1e6, 1);
+  return `<h3 style="margin-top:12px;color:#8e44ad">Joint: ${fmt(J.alpha)}\u00B0 ${J.sgn > 0 ? 'counter-clockwise' : 'clockwise'} from ${J.ref}</h3><table>
+    <tr><td>Normal stress \u03C3 on joint (N/mm²)</td><td>${fmt(s.sx)}</td></tr>
+    <tr><td>Shear stress \u03C4 on joint (N/mm², cw +)</td><td>${fmt(s.t)}</td></tr>
+    <tr><td>Normal strain \u03B5 \u22A5 joint (\u00B5\u03B5)</td><td>${u(s.ex)}</td></tr>
+    <tr><td>Shear strain \u03B3 (\u00B5rad, cw +)</td><td>${u(s.g)}</td></tr></table>`;
+}
+function drawElements(m) {
+  const big = Math.max(Math.abs(m.ec) + m.Re, 2 * m.Re, 1e-12);
+  $('elements').innerHTML =
+    `<div class="el"><h3>Plane stress state (\u03B8 = 0\u00B0)</h3>${elementSVG(m, 0, 0.14 / big)}${stateTable(m, 0)}${maxTable(m)}${jointTable(m)}</div>`;
+}
+
+function drawReadings(m) {
+  const J = joint(m), g = (title, color, rows) => `<div><h3 style="color:${color}">${title}</h3><table>` +
+    rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('') + '</table></div>';
+  const n = normPlane, S = m.thP;
+  $('readings').innerHTML =
+    g(`Joint (${fmt(J.alpha)}° ${J.sgn > 0 ? 'ccw' : 'cw'} from ${J.ref})`, '#8e44ad', [
+      ['Normal stress σ (N/mm²)', fmt(J.st.sx)], ['Shear stress τ (N/mm², cw +)', fmt(J.st.t)],
+      ['Plane normal θ (deg)', fmt(n(J.nAng))]]) +
+    g('Maximum / minimum normal stress', '#1a8f5a', [
+      ['σp maximum (N/mm²)', fmt(m.c + m.R)], ['Plane P, θ (deg)', fmt(n(S))], ['τ on plane P (N/mm²)', '0'],
+      ['σq minimum (N/mm²)', fmt(m.c - m.R)], ['Plane Q, θ (deg)', fmt(n(S + 90))], ['τ on plane Q (N/mm²)', '0']]) +
+    g('Maximum / minimum shear stress', '#0e8a9b', [
+      ['+τmax (N/mm²)', fmt(m.R)], ['Plane S+, θ (deg)', fmt(n(S + 45))], ['σ on plane S+ (N/mm²)', fmt(m.c)],
+      ['−τmax (N/mm²)', fmt(-m.R)], ['Plane S−, θ (deg)', fmt(n(S - 45))], ['σ on plane S− (N/mm²)', fmt(m.c)]]);
+}
+function drawSummary(m) {
+  const u = v => fmt(v * 1e6, 1);
+  const rows = [
+    ['Centre C (N/mm²)', fmt(m.c)], ['Radius R (N/mm²)', fmt(m.R)],
+    ['σp (N/mm²)', fmt(m.c + m.R)], ['σq (N/mm²)', fmt(m.c - m.R)],
+    ['θp to plane P (deg, ccw +)', fmt(m.thP)], ['τmax in-plane (N/mm²)', fmt(m.R)],
+    ['θs to τmax (deg, ccw +)', fmt(m.thS > 90 ? m.thS - 90 : m.thS)],
+    ['σ on τmax planes (N/mm²)', fmt(m.c)],
+    ['G (GPa)', fmt(m.G / 1000)]
+  ];
+  $('summary').innerHTML = rows.map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join('');
+}
+
+/* ---------- wiring ---------- */
+function update() {
+  const m = model();
+  $('warn').style.display = Math.abs(m.tV + m.tH) > 1e-9 ? 'block' : 'none';
+  drawMohr(m);
+  drawElements(m);
+  drawReadings(m);
+  drawSummary(m);
+}
+['vs', 'vt', 'hs', 'ht', 'E', 'nu', 'ja', 'jr', 'jd', 'tp', 'ts', 'tj'].forEach(id => $(id).addEventListener('input', update));
+$('fix').addEventListener('click', () => { $('ht').value = -num('vt'); update(); });
+window.addEventListener('resize', update);
+update();
+</script>
+</body>
+</html>
