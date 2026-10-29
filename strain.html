@@ -148,16 +148,16 @@
     </section>
 
     <section class="card">
-      <h2>Mohr's circle</h2>
-      <svg id="mohr" viewBox="0 0 680 520" role="img" aria-label="Mohr's circle for strain"></svg>
+      <h2>Mohr's circle for stress</h2>
+      <svg id="mohr" viewBox="0 0 680 520" role="img" aria-label="Mohr's circle for stress"></svg>
       <div class="legend">
         <span><span class="sw" style="border-color:var(--blue)"></span>V (vertical face)</span>
         <span><span class="sw" style="border-color:var(--red)"></span>H (horizontal face)</span>
-        <span><span class="sw" style="border-color:var(--green)"></span>Max normal strain (principal)</span>
-        <span><span class="sw" style="border-color:#0e8a9b"></span>Max shear strain</span>
+        <span><span class="sw" style="border-color:var(--green)"></span>Max normal stress (principal)</span>
+        <span><span class="sw" style="border-color:#0e8a9b"></span>Max shear stress</span>
         <span><span class="sw" style="border-color:#8e44ad"></span>Joint (J)</span>
-        <span><span class="sw" style="border-color:#e08a00"></span>Rosette gauges 1, 2, 3</span>
       </div>
+      <p class="hint">Stresses follow from the strains by Hooke's law (plane stress) using E and &nu;. Stress in N/mm²; &tau; positive clockwise.</p>
     </section>
 
     <section class="card">
@@ -326,12 +326,11 @@ function drawCircle(id, q) {
 }
 
 function drawMohr(m) {
-  const J = joint(m), u = 1e6, st = J.st;
+  const J = joint(m), st = J.st;
   drawCircle('mohr', {
-    c: m.ec * u, R: m.Re * u, phi: m.phie, thP: m.thP, xl: 'ε (µε)', yl: 'γ/2 (µrad/2, clockwise +)',
-    p1: 'εp', p2: 'εq', mx: 'γmax/2',
-    G: m.th.map(t => { const g = stateAt(m, t / D2R); return [g.ex * u, g.g / 2 * u]; }),
-    V: [m.ex * u, m.e * u], H: [m.ey * u, -m.e * u], J: { ...J, pt: [st.ex * u, st.g / 2 * u] }
+    c: m.c, R: m.R, phi: m.phi, thP: m.thP, xl: 'σ (N/mm²)', yl: 'τ (N/mm², clockwise +)',
+    p1: 'σp', p2: 'σq', mx: 'τmax',
+    V: [m.sx, m.t], H: [m.sy, -m.t], J: { ...J, pt: [st.sx, st.t] }
   });
 }
 
@@ -369,46 +368,50 @@ function drawSummary(m) {
 /* ---------- McClintock construction ---------- */
 let mcStep = 6;
 const MC_STEPS = 6;
-function mcCaptions(m, a) {
-  const rect = Math.abs(a - 45) < 1e-6;
+function mcCaptions(a) {
   return [
     'Draw a vertical line through each gauge reading &epsilon;<sub>1</sub>, &epsilon;<sub>2</sub>, &epsilon;<sub>3</sub> on a common &epsilon; scale. The heights are not known yet.',
-    'Choose any point O on the line of gauge 2 (the middle gauge). Move the slider to see that the result does not depend on where O is.',
-    `Through O draw two lines, each ${fmt(a, 0)}° from the vertical (the gauge spacing). They meet the gauge 1 line at A and the gauge 3 line at C.`,
-    rect ? 'For the rectangular rosette &ang;AOC = 90°, so AC is a diameter. Draw the circle through A, O and C; its centre is the mid-point of AC.'
-         : 'Draw the circle through A, O and C. Its centre gives the average strain and its radius the shear radius.',
-    'The horizontal line through the centre is the &epsilon; axis (&gamma;/2 = 0). Its crossings with the circle are the principal strains &epsilon;<sub>p</sub> and &epsilon;<sub>q</sub>.',
+    `Choose any point O on the vertical line of gauge 2 (the middle gauge) and lay the rosette on it: gauge 2 along the vertical, gauges 1 and 3 each ${fmt(a, 0)}° either side (the gauge spacing). Move the slider &mdash; the result does not depend on where O is.`,
+    'Extend each gauge arm until it meets its own vertical line: gauge 1 &rarr; pt 1, gauge 3 &rarr; pt 3. Gauge 2 lies on its own line, so pt 2 is O itself.',
+    'Join pt 1&ndash;pt 2 and pt 2&ndash;pt 3. The perpendicular bisectors of these two chords meet at the centre of the circle.',
+    'Draw the circle through pt 1, pt 2 and pt 3, centred on that point. The horizontal line through the centre is the &epsilon; axis (&gamma;/2 = 0); its crossings with the circle are the principal strains &epsilon;<sub>p</sub> and &epsilon;<sub>q</sub>.',
     'Read the results: gauges 1, 2, 3 and the V and H points lie on the circle; the top and bottom of the circle give &plusmn;&gamma;<sub>max</sub>/2.'
   ];
+}
+function mcGeom(r, cot, yO) {
+  const O = [r[1], yO], A = [r[0], yO + (r[0] - r[1]) * cot], C = [r[2], yO - (r[2] - r[1]) * cot];
+  const d = 2 * (A[0] * (O[1] - C[1]) + O[0] * (C[1] - A[1]) + C[0] * (A[1] - O[1]));
+  if (Math.abs(d) < 1e-9) return { O, A, C, ok: false };
+  const sq = P => P[0] * P[0] + P[1] * P[1];
+  const ux = (sq(A) * (O[1] - C[1]) + sq(O) * (C[1] - A[1]) + sq(C) * (A[1] - O[1])) / d;
+  const uy = (sq(A) * (C[0] - O[0]) + sq(O) * (A[0] - C[0]) + sq(C) * (O[0] - A[0])) / d;
+  return { O, A, C, ok: true, ux, uy, R: Math.hypot(A[0] - ux, A[1] - uy) };
 }
 function drawMc(m) {
   const svg = $('mc'), u = 1e6, s = mcStep;
   const r = m.r.map(v => v * u), a = (m.th[1] - m.th[0]) / D2R, cot = 1 / Math.tan(a * D2R);
   const span = Math.max(Math.abs(r[0] - r[2]), Math.abs(r[1] - r[0]), Math.abs(r[2] - r[1]), 2 * m.Re * u, 1);
-  const yO = (num('mo') / 100 - 0.5) * 1.2 * span;
-  const O = [r[1], yO], A = [r[0], yO + (r[0] - r[1]) * cot], C = [r[2], yO - (r[2] - r[1]) * cot];
-  // circle through A, O, C
-  const d = 2 * (A[0] * (O[1] - C[1]) + O[0] * (C[1] - A[1]) + C[0] * (A[1] - O[1]));
-  let ux, uy, R;
-  if (Math.abs(d) < 1e-9 * span * span) { ux = m.ec * u; uy = yO; R = m.Re * u; }
-  else {
-    const sq = P => P[0] * P[0] + P[1] * P[1];
-    ux = (sq(A) * (O[1] - C[1]) + sq(O) * (C[1] - A[1]) + sq(C) * (A[1] - O[1])) / d;
-    uy = (sq(A) * (C[0] - O[0]) + sq(O) * (A[0] - C[0]) + sq(C) * (O[0] - A[0])) / d;
-    R = Math.hypot(A[0] - ux, A[1] - uy);
-  }
-  // fixed bounds so the picture does not jump between steps
-  const xs = [...r, ux - R, ux + R, 0], ys = [uy - R, uy + R, yO, A[1], C[1]];
+  const yOf = t => (t / 100 - 0.5) * 1.2 * span;               // slider 0..100 -> height of O
+  const geom = yO => {
+    const g = mcGeom(r, cot, yO);
+    return g.ok ? g : { ...g, ux: m.ec * u, uy: yO, R: m.Re * u };
+  };
+  const g = geom(yOf(num('mo'))), { O, A, C, ux, uy, R } = g;
+  // bounds cover the whole slider range, so moving O visibly moves it
+  const xs = [...r, 0], ys = [];
+  [0, 100].forEach(t => { const q = geom(yOf(t)); xs.push(q.ux - q.R, q.ux + q.R); ys.push(q.uy - q.R, q.uy + q.R, q.O[1], q.A[1], q.C[1]); });
   let xlo = Math.min(...xs), xhi = Math.max(...xs), ylo = Math.min(...ys), yhi = Math.max(...ys);
-  const px = 0.1 * (xhi - xlo || 1), py = 0.12 * (yhi - ylo || 1);
-  xlo -= px; xhi += px; ylo -= py + 0.06 * (yhi - ylo); yhi += py + 0.06 * (yhi - ylo);
+  const px = 0.1 * (xhi - xlo || 1), py = 0.1 * (yhi - ylo || 1);
+  xlo -= px; xhi += px; ylo -= py * 1.8; yhi += py * 1.8;
   const W = Math.max(300, Math.min(680, Math.round(svg.getBoundingClientRect().width) || 680));
-  const H = Math.round(Math.min(520, Math.max(300, W * 0.72)));
+  const H = Math.round(Math.min(600, Math.max(320, W * 0.85)));
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   const k = Math.min(W / (xhi - xlo), H / (yhi - ylo));
   const X = v => W / 2 + (v - (xlo + xhi) / 2) * k, Y = v => H / 2 - (v - (ylo + yhi) / 2) * k;
-  const orange = '#e08a00', blue = '#1f6feb', green = '#1a8f5a', teal = '#0e8a9b', ink = '#1d2330';
+  const orange = '#e08a00', blue = '#1f6feb', green = '#1a8f5a', teal = '#0e8a9b', ink = '#1d2330', purple = '#8e44ad';
   const dot = (P, col, fill = col) => `<circle cx="${X(P[0])}" cy="${Y(P[1])}" r="5" fill="${fill}" stroke="${col}" stroke-width="2"/>`;
+  const lab = (P, str, col, dx, dy, anchor = 'middle') => text(X(P[0]) + dx, Y(P[1]) + dy, str, { fill: col, bold: true, size: 12, anchor });
+  const side = P => (P[0] >= O[0] ? 1 : -1);
   let o = '';
 
   // step 1: gauge lines on an ε scale
@@ -419,27 +422,50 @@ function drawMc(m) {
     o += text(X(v), 14 + (i % 2) * 14, `ε${'₁₂₃'[i]} = ${fmt(v, 1)}`, { fill: '#b36b00', bold: true, size: 12 });
     o += text(X(v), yb + 14 + (i % 2) * 12, `gauge ${i + 1} (${fmt(m.th[i] / D2R, 0)}°)`, { fill: '#b36b00', size: 10 });
   });
-  // step 2: arbitrary point O
-  if (s >= 2) { o += dot(O, blue, '#fff') + (s < 6 ? text(X(O[0]) + 12, Y(O[1]) - 10, 'O', { fill: blue, bold: true, size: 13 }) : ''); }
-  // step 3: construction lines to A and C
+
+  // steps 2-4: construction (faded once the results are shown)
+  let c = '';
+  if (s >= 2) {
+    // rosette laid on O: gauge 2 along the vertical, gauges 1 and 3 at ±a
+    const Lr = Math.min(70, 0.16 * Math.min(W, H)), sa = Math.sin(a * D2R), ca = Math.cos(a * D2R);
+    const arm = (dx, dy, n) => line(X(O[0]), Y(O[1]), X(O[0]) + dx * Lr, Y(O[1]) - dy * Lr, orange, 5, 'stroke-linecap="round" opacity=".6"') +
+      text(X(O[0]) + dx * (Lr + 12), Y(O[1]) - dy * (Lr + 12), n, { fill: '#b36b00', bold: true, size: 12 });
+    c += arm(sa, ca, '1') + arm(0, 1, '2') + arm(-sa, ca, '3');
+    c += text(X(O[0]) + sa * Lr * 0.55 + 12, Y(O[1]) - ca * Lr * 0.55 + 6, `${fmt(a, 0)}°`, { fill: '#b36b00', size: 10, anchor: 'start' });
+    c += text(X(O[0]) - sa * Lr * 0.55 - 12, Y(O[1]) - ca * Lr * 0.55 + 6, `${fmt(a, 0)}°`, { fill: '#b36b00', size: 10, anchor: 'end' });
+    c += dot(O, blue, '#fff') + (s === 2 ? text(X(O[0]) + 10, Y(O[1]) + 16, 'O', { fill: blue, bold: true, size: 13, anchor: 'start' }) : '');
+  }
   if (s >= 3) {
-    o += line(X(A[0]), Y(A[1]), X(O[0]), Y(O[1]), blue, 1.8) + line(X(O[0]), Y(O[1]), X(C[0]), Y(C[1]), blue, 1.8);
-    o += dot(A, blue) + (s < 6 ? text(X(A[0]) - 12, Y(A[1]) - 10, 'A', { fill: blue, bold: true, size: 13 }) : '');
-    o += dot(C, blue) + (s < 6 ? text(X(C[0]) + 12, Y(C[1]) + 12, 'C', { fill: blue, bold: true, size: 13 }) : '');
-    if (s < 6) { const lab = (P, sg) => text(X(O[0]) + sg * 26, Y(O[1]) + (P[1] > O[1] ? -22 : 24), `${fmt(a, 0)}°`, { fill: blue, size: 11 });
-    o += lab(A, Math.sign(A[0] - O[0]) || -1) + lab(C, Math.sign(C[0] - O[0]) || 1); }
+    c += line(X(A[0]), Y(A[1]), X(O[0]), Y(O[1]), blue, 1.6) + line(X(O[0]), Y(O[1]), X(C[0]), Y(C[1]), blue, 1.6);
+    c += dot(A, blue) + dot(C, blue) + dot(O, blue);
+    if (s < 6) {
+      c += lab(A, 'pt 1', blue, side(A) * 10, -10, side(A) > 0 ? 'start' : 'end');
+      c += lab(C, 'pt 3', blue, side(C) * 10, 16, side(C) > 0 ? 'start' : 'end');
+      c += lab(O, 'pt 2', blue, -10, 20, 'end');
+    }
   }
-  // step 4: circle through A, O, C
-  if (s >= 4) {
-    o += `<circle cx="${X(ux)}" cy="${Y(uy)}" r="${Math.max(R * k, 0.5)}" fill="${blue}" fill-opacity=".06" stroke="${ink}" stroke-width="1.8"/>`;
-    o += `<circle cx="${X(ux)}" cy="${Y(uy)}" r="3.5" fill="${ink}"/>` + text(X(ux) - 10, Y(uy) + 14, 'C', { bold: true, size: 12 });
-    if (Math.abs(a - 45) < 1e-6) o += line(X(A[0]), Y(A[1]), X(C[0]), Y(C[1]), '#8a93a3', 1.3, 'stroke-dasharray="5 3"');
+  if (s >= 4 && s <= 5) {
+    const bis = (P, Q) => {
+      const dx = Q[0] - P[0], dy = Q[1] - P[1], L = Math.hypot(dx, dy);
+      if (L < 1e-9) return '';
+      const M = [(P[0] + Q[0]) / 2, (P[1] + Q[1]) / 2], n = [-dy / L, dx / L], big = 4 * span;
+      return line(X(P[0]), Y(P[1]), X(Q[0]), Y(Q[1]), '#8a93a3', 1.2, 'stroke-dasharray="3 3"') +
+        line(X(M[0] - n[0] * big), Y(M[1] - n[1] * big), X(M[0] + n[0] * big), Y(M[1] + n[1] * big), purple, 1.5, 'stroke-dasharray="7 4"') +
+        `<circle cx="${X(M[0])}" cy="${Y(M[1])}" r="3" fill="${purple}"/>`;
+    };
+    c += bis(A, O) + bis(O, C);
+    c += `<circle cx="${X(ux)}" cy="${Y(uy)}" r="5" fill="${purple}" stroke="#fff" stroke-width="1.5"/>`;
+    c += text(X(ux) + 10, Y(uy) + 18, s === 4 ? 'Centre of circle' : 'C', { fill: purple, bold: true, size: 12, anchor: 'start' });
   }
-  // step 5: true ε axis through the centre
+  o += s >= 6 ? `<g opacity=".35">${c}</g>` : c;
+
+  // step 5: circle + true ε axis through the centre
   if (s >= 5) {
+    o += `<circle cx="${X(ux)}" cy="${Y(uy)}" r="${Math.max(R * k, 0.5)}" fill="${blue}" fill-opacity=".06" stroke="${ink}" stroke-width="1.8"/>`;
     o += arrow(10, Y(uy), W - 6, Y(uy), ink, 1.4) + text(W - 8, Y(uy) - 12, 'ε (µε)', { bold: true, anchor: 'end', size: 13 });
     o += arrow(X(0), H - 8, X(0), 8, ink, 1.1) + text(X(0) + 10, 14, 'γ/2', { bold: true, anchor: 'start', size: 12 });
-    [[ux + R, 'εp', 12], [ux - R, 'εq', 12]].forEach(([v, n, dy]) => {
+    o += `<circle cx="${X(ux)}" cy="${Y(uy)}" r="3.5" fill="${ink}"/>` + (s >= 6 ? text(X(ux) - 10, Y(uy) + 14, 'C', { bold: true, size: 12 }) : '');
+    [[ux + R, 'εp'], [ux - R, 'εq']].forEach(([v, n]) => {
       o += `<circle cx="${X(v)}" cy="${Y(uy)}" r="4.5" fill="${green}"/>` + text(X(v), Y(uy) + 18, `${n} = ${fmt(v, 1)}`, { fill: green, bold: true, size: 12 });
     });
   }
@@ -451,7 +477,7 @@ function drawMc(m) {
     o += dot(V, blue) + text(X(V[0]) + 14, Y(V[1]) - 10, `V(${fmt(V[0], 1)}, ${fmt(V[1] - uy, 1)})`, { fill: blue, bold: true, size: 11 });
     o += dot(Hh, '#d1344a') + text(X(Hh[0]) - 14, Y(Hh[1]) + 12, `H(${fmt(Hh[0], 1)}, ${fmt(Hh[1] - uy, 1)})`, { fill: '#d1344a', bold: true, size: 11 });
     m.th.forEach((t, i) => {
-      const g = stateAt(m, t / D2R), G = P(g.ex * u, g.g / 2 * u);
+      const q = stateAt(m, t / D2R), G = P(q.ex * u, q.g / 2 * u);
       o += dot(G, orange, '#fff') + text(X(G[0]) + 12, Y(G[1]) + (i === 1 ? -12 : 14), `${i + 1}`, { fill: '#b36b00', bold: true, size: 12 });
     });
     [[R, '+'], [-R, '−']].forEach(([t, sg]) => {
@@ -461,7 +487,7 @@ function drawMc(m) {
     });
   }
   svg.innerHTML = o;
-  $('mccap').innerHTML = `<b>Step ${s}.</b> ` + mcCaptions(m, a)[s - 1];
+  $('mccap').innerHTML = `<b>Step ${s}.</b> ` + mcCaptions(a)[s - 1];
   $('mcsteps').innerHTML = Array.from({ length: MC_STEPS }, (_, i) =>
     `<button type="button" data-s="${i + 1}" class="${i + 1 === s ? 'on' : ''}">${i + 1}</button>`).join('');
   $('mcprev').disabled = s <= 1; $('mcnext').disabled = s >= MC_STEPS;
