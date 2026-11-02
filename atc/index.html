@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATC Trainer – Tower & Radar</title>
+<meta name="description" content="Air traffic control training games: 20 arcade tower levels, 20 surveillance radar levels, with learning analytics.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top no-print">
+  <div class="brand"><span class="logo">✈</span><div><b>ATC Trainer</b><small>Tower arcade · Radar surveillance</small></div></div>
+  <nav id="nav" hidden>
+    <button data-view="play" class="on">Play</button><button data-view="reports">Reports</button>
+  </nav>
+  <div id="who" class="who" hidden></div>
+</header>
+<main id="main">
+  <section id="v-login" class="view"></section>
+  <section id="v-play" class="view" hidden></section>
+  <section id="v-game" class="view" hidden></section>
+  <section id="v-reports" class="view" hidden></section>
+</main>
+<div id="modal" class="modal" hidden><div class="dlg" role="dialog" aria-modal="true"></div></div>
+<script src="js/store.js"></script>
+<script src="js/arcade.js"></script>
+<script src="js/radar.js"></script>
+<script src="js/report.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

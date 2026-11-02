@@ -17,3 +17,11 @@ Interactive single-page tool (plain HTML/JS, no build step).
 6. To update, commit changes to `main`; Pages redeploys automatically.
 
 To try locally, just open `index.html` in a browser.
+
+---
+
+# ATC Trainer (tower arcade + radar surveillance)
+
+Located in [`atc/`](atc/) – 20 arcade levels, 20 surveillance levels, student score recording, learning analytics,
+performance data sheet and performance analysis. Live at `https://<username>.github.io/MECH-III-Tools/atc/` once Pages is on.
+Full build / hosting steps: [`atc/GUIDE.md`](atc/GUIDE.md).

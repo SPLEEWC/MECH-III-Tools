@@ -2,7 +2,7 @@
    sector at its assigned exit fix and altitude while keeping 5 NM / 1000 ft separation and avoiding zones. */
 window.ATC = window.ATC || {};
 ATC.radar = (function () {
-  const SZ = 100, PX = 7, OFF = 30, W = SZ * PX + OFF * 2, K = 15; // K = simulated seconds per real second
+  const SZ = 100, PX = 7, OFF = 46, W = SZ * PX + OFF * 2, K = 15; // K = simulated seconds per real second
   const SEP_H = 5, SEP_V = 10, TURN = 3, CLIMB = 0.25, ACCEL = 2;
   const NAMES = ['Hello Sector', 'Pair Crossing', 'Double Cross', 'Five Flights', 'Rising & Falling',
     'Level Changes', 'Busy Afternoon', 'Restricted Zone', 'Dodge the Zone', 'Zone Squeeze',
@@ -72,10 +72,11 @@ ATC.radar = (function () {
     const hazards = [];
     const cand = list.filter(a => a.pair === undefined || r() < 0.5);
     const add = (kind, rad) => {
-      for (let tries = 0; tries < 40; tries++) {
-        const a = pick(cand), f = 0.4 + r() * 0.2, cx = a.x + (a.fix.x - a.x) * f, cy = a.y + (a.fix.y - a.y) * f;
-        if (cx < 20 || cx > 80 || cy < 20 || cy > 80) continue;
-        if (hazards.some(h => Math.hypot(h.x - cx, h.y - cy) < h.r + rad + 6)) continue;
+      for (let tries = 0; tries < 600; tries++) {
+        const a = tries < 200 ? pick(cand) : pick(list), f = 0.3 + r() * 0.4, cx = a.x + (a.fix.x - a.x) * f, cy = a.y + (a.fix.y - a.y) * f;
+        const lim = tries < 200 ? 20 : 14, gap = tries < 100 ? 6 : tries < 300 ? 2 : -10;
+        if (cx < lim || cx > SZ - lim || cy < lim || cy > SZ - lim) continue;
+        if (hazards.some(h => Math.hypot(h.x - cx, h.y - cy) < h.r + rad + gap)) continue;
         hazards.push({ kind, x: cx, y: cy, r: rad }); return;
       }
     };
@@ -265,7 +266,7 @@ ATC.radar = (function () {
         ctx.fillStyle = okAlt ? '#8de3b5' : '#ffd166'; ctx.fillText(`${a.fix.name} ${pad3(a.req)}`, x + 9, y + 12);
       });
       S.toasts = S.toasts.filter(t => S.rt - t.t < 4); ctx.textAlign = 'center'; ctx.font = 'bold 14px system-ui';
-      S.toasts.slice(-4).forEach((t, i) => { ctx.globalAlpha = Math.max(0, 1 - (S.rt - t.t) / 4); ctx.fillStyle = t.col; ctx.fillText(t.txt, W / 2, 20 + i * 20); }); ctx.globalAlpha = 1;
+      S.toasts.slice(-4).forEach((t, i) => { ctx.globalAlpha = Math.max(0, 1 - (S.rt - t.t) / 4); ctx.fillStyle = t.col; ctx.fillText(t.txt, W / 2, OFF + 18 + i * 20); }); ctx.globalAlpha = 1;
       if (S.paused) { ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(0, 0, W, W); ctx.fillStyle = '#fff'; ctx.font = 'bold 40px system-ui'; ctx.fillText('PAUSED', W / 2, W / 2); }
     }
     function hud() {
