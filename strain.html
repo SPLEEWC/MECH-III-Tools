@@ -81,12 +81,12 @@
       <fieldset>
         <legend>1. Choose the rosette</legend>
         <select id="rs">
-          <option value="rect">Rectangle (0&deg;, 45&deg;, 90&deg;)</option>
+          <option value="rect">Rectangle (45&deg; apart)</option>
           <option value="delta">Delta &mdash; triangle (60&deg; apart)</option>
           <option value="star">Star (120&deg; apart)</option>
         </select>
       </fieldset>
-      <fieldset id="rvbox" hidden>
+      <fieldset id="rvbox">
         <legend>Orientation &mdash; which gauge is vertical?</legend>
         <select id="rv">
           <option value="x">Original (gauge 1 along x)</option>
@@ -200,7 +200,6 @@ const ROSETTE_STEP = { rect: 45, delta: 60, star: 120 };
 // gauge angles (deg, ccw from x) and the gauge that carries the McClintock pole (index)
 function rosetteAngles() {
   const kind = $('rs').value, vs = $('rv').value;
-  if (kind === 'rect') return { deg: ROSETTES.rect, orig: ROSETTES.rect, v: 1 };
   if (vs === 'x') return { deg: ROSETTES[kind], orig: ROSETTES[kind], v: 1 };
   const v = +vs - 1, st = ROSETTE_STEP[kind];
   return { deg: [0, 1, 2].map(i => 90 + (i - v) * st), orig: ROSETTES[kind], v };
@@ -391,7 +390,8 @@ function mcCaptions(m, kind) {
   const v = m.vmc + 1, oth = [1, 2, 3].filter(i => i !== v);
   const lay = kind === 'star' ? `a three-armed star with gauge ${v} along the vertical (arms 120° apart)`
     : kind === 'delta' ? `the triangle with gauge ${v} along the vertical`
-    : `gauge ${v} along the vertical, gauges ${oth[0]} and ${oth[1]} each 45° either side`;
+    : v === 2 ? `gauge ${v} along the vertical, gauges ${oth[0]} and ${oth[1]} each 45° either side`
+    : `gauge ${v} along the vertical, gauge ${oth[0]} at ${Math.abs(oth[0] - v) * 45}° and gauge ${oth[1]} at ${Math.abs(oth[1] - v) * 45}° from it`;
   return [
     'Draw a vertical line through each gauge reading &epsilon;<sub>1</sub>, &epsilon;<sub>2</sub>, &epsilon;<sub>3</sub> on a common &epsilon; scale. The heights are not known yet.',
     `Choose any point O on the vertical line of gauge ${v} and lay the rosette on it: ${lay}. Move the slider &mdash; the result does not depend on where O is.`,
@@ -552,7 +552,7 @@ function drawMc(m) {
 /* ---------- rosette diagram ---------- */
 function drawRosette(m) {
   const L = 58, o0 = '#8a93a3', or = '#e08a00', lc = '#b36b00', kind = $('rs').value, ra = m.ra;
-  const svg = $('rosette'), rotated = kind !== 'rect' && $('rv').value !== 'x';
+  const svg = $('rosette'), rotated = $('rv').value !== 'x' && ra.deg.some((d, i) => d !== ra.orig[i]);
   const wide = rotated;
   svg.setAttribute('viewBox', wide ? '0 0 380 170' : '0 0 240 150');
   svg.style.maxWidth = wide ? '100%' : '260px';
@@ -583,7 +583,7 @@ function drawRosette(m) {
     return q;
   };
   let o = '';
-  if (kind === 'rect') {
+  if (kind === 'rect' && !rotated) {
     const cx = 120, cy = 100;
     o += xaxis(cx, cy).replace(`x="${cx + L + 36}"`, `x="${cx + L + 36}"`);
     m.th.forEach((t, i) => {
@@ -599,9 +599,11 @@ function drawRosette(m) {
     // original orientation beside the rotated one chosen by the user
     const v = ra.v, rot = ((ra.deg[v] - ra.orig[v]) % 360 + 540) % 360 - 180;
     const draw = kind === 'delta' ? tri : star;
-    o += draw(80, 88, ra.orig, '#8a93a3', '.55', false) + draw(292, 88, ra.deg, or, '.6', true);
+    // rectangle arms all point up and sideways, so sit it lower and further apart
+    const rc = kind === 'rect', x0 = rc ? 50 : 80, x1 = rc ? 300 : 292, y0 = rc ? 122 : 88;
+    o += draw(x0, y0, ra.orig, '#8a93a3', '.55', false) + draw(x1, y0, ra.deg, or, '.6', true);
     o += arrow(152, 84, 214, 84, '#8e44ad', 1.6) + text(183, 72, `rotate ${fmt(rot, 0)}°`, { size: 10, fill: '#8e44ad' });
-    o += text(80, 160, 'original', { size: 10.5, fill: o0 }) + text(292, 160, `gauge ${v + 1} vertical (used)`, { size: 10.5, fill: lc, bold: true });
+    o += text(x0 + (rc ? 20 : 0), 160, 'original', { size: 10.5, fill: o0 }) + text(x1, 160, `gauge ${v + 1} vertical (used)`, { size: 10.5, fill: lc, bold: true });
   }
   svg.innerHTML = o;
 }
@@ -623,7 +625,6 @@ function update() {
 }
 $('rs').addEventListener('input', () => {      // set a sensible orientation when the rosette type changes
   const k = $('rs').value;
-  $('rvbox').hidden = k === 'rect';
   $('rv').value = k === 'star' ? '1' : 'x';
 });
 ['rs', 'rv', 'g1', 'g2', 'g3', 'E', 'nu', 'ja', 'jr', 'jd', 'mo'].forEach(id => $(id).addEventListener('input', update));
