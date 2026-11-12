@@ -63,6 +63,10 @@
   .res span:first-child { color: var(--mute); }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .82rem; color: var(--mute); margin-top: 6px; }
   .sw { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 5px; }
+  .calc p { margin: 0 0 8px; }
+  .calc .eq { margin: 0 0 8px; padding: 6px 8px; background: var(--bg); border-radius: 6px; font-size: .88rem; }
+  .calc .eq div + div { padding-left: 2.6em; text-indent: -1em; }
+  .calc .eq b { color: var(--green); }
   ol { padding-left: 1.2em; margin: 4px 0 0; }
   li { margin: 2px 0; }
 </style>
@@ -109,28 +113,18 @@
     </section>
 
     <section class="card">
-      <h2>Joint</h2>
-      <label>Angle from reference plane (degrees)
-        <input type="number" id="ja" value="30" min="0" max="180" step="any">
-      </label>
-      <div class="row" style="margin-top:8px">
-        <label>Reference plane
-          <select id="jr"><option value="V">V (vertical)</option><option value="H">H (horizontal)</option></select>
-        </label>
-        <label>Direction of joint
-          <select id="jd"><option value="ccw">Counter-clockwise</option><option value="cw">Clockwise</option></select>
-        </label>
-      </div>
-      <p class="hint">The joint plane is the reference plane rotated by the angle in the chosen direction. Its strains are the point rotated by 2&times;angle the same way on the circle.</p>
-    </section>
-
-    <section class="card">
       <h2>Material (for stresses)</h2>
       <div class="row">
         <label>E (GPa)<input type="number" id="E" value="200" min="0" step="any"></label>
         <label>Poisson's ratio &nu;<input type="number" id="nu" value="0.3" step="any"></label>
       </div>
       <p class="hint">Plane stress, linear-elastic, isotropic: &sigma;<sub>x</sub> = E(&epsilon;<sub>x</sub>+&nu;&epsilon;<sub>y</sub>)/(1&minus;&nu;²), &tau; = G&gamma;, G = E / (2(1+&nu;)).</p>
+    </section>
+
+    <section class="card">
+      <h2>Principal stresses &mdash; calculation</h2>
+      <div class="calc" id="pcalc"></div>
+      <p class="hint">Plane stress: the principal stresses act on the same planes P and Q as the principal strains.</p>
     </section>
 
     <section class="card">
@@ -165,7 +159,6 @@
         <span><span class="sw" style="border-color:var(--red)"></span>H (horizontal face)</span>
         <span><span class="sw" style="border-color:var(--green)"></span>Max normal stress (principal)</span>
         <span><span class="sw" style="border-color:#0e8a9b"></span>Max shear stress</span>
-        <span><span class="sw" style="border-color:#8e44ad"></span>Joint (J)</span>
       </div>
       <p class="hint">Stresses follow from the strains by Hooke's law (plane stress) using E and &nu;. Stress in N/mm²; &tau; positive clockwise.</p>
     </section>
@@ -231,14 +224,6 @@ function stateAt(m, deg) {
   const a = m.phi + 2 * deg * D2R, ae = m.phie + 2 * deg * D2R;
   return { deg, sx: m.c + m.R * Math.cos(a), sy: m.c - m.R * Math.cos(a), t: m.R * Math.sin(a),
            ex: m.ec + m.Re * Math.cos(ae), ey: m.ec - m.Re * Math.cos(ae), g: 2 * m.Re * Math.sin(ae) };
-}
-
-function joint(m) {
-  const alpha = Math.max(0, Math.min(180, num('ja')));
-  const ref = $('jr').value, sgn = $('jd').value === 'cw' ? -1 : 1;
-  const nAng = (ref === 'V' ? 0 : 90) + sgn * alpha;      // normal of joint plane, deg ccw from x
-  const a0 = m.phi + (ref === 'V' ? 0 : Math.PI);
-  return { alpha, ref, sgn, nAng, a0, a1: a0 + sgn * 2 * alpha * D2R, st: stateAt(m, nAng) };
 }
 
 /* ---------- svg helpers ---------- */
@@ -330,36 +315,28 @@ function drawCircle(id, q) {
     return `<circle cx="${px}" cy="${py}" r="6" fill="${col}" stroke="#fff" stroke-width="1.5"/>` +
       text(px + ux / L * 24, py + uy / L * 18, lab, { fill: col, bold: true, size: 12 });
   };
-  const J = q.J;
   (q.G || []).forEach((g, i) => {
     o += `<circle cx="${X(g[0])}" cy="${Y(g[1])}" r="4" fill="#fff" stroke="#e08a00" stroke-width="2"/>` +
       text(X(g[0]) + 10, Y(g[1]) - 9, `${i + 1}`, { fill: '#e08a00', bold: true, size: 12 });
   });
-  o += arc(J.a0, J.a1, rA * (J.ref === 'V' ? 0.58 : 0.72), purple, `2α = ${fmt(2 * J.alpha)}° ${J.sgn > 0 ? 'ccw' : 'cw'}`, false);
-  o += line(X(c), oy, X(J.pt[0]), Y(J.pt[1]), purple, 2);
-  o += pt(X(J.pt[0]), Y(J.pt[1]), purple, `J(${fmt(J.pt[0])}, ${fmt(J.pt[1])})`);
   o += pt(X(q.V[0]), Y(q.V[1]), '#1f6feb', `V(${fmt(q.V[0])}, ${fmt(q.V[1])})`);
   o += pt(X(q.H[0]), Y(q.H[1]), '#d1344a', `H(${fmt(q.H[0])}, ${fmt(q.H[1])})`);
   svg.innerHTML = o;
 }
 
 function drawMohr(m) {
-  const J = joint(m), st = J.st;
   drawCircle('mohr', {
     c: m.c, R: m.R, phi: m.phi, thP: m.thP, xl: 'σ (N/mm²)', yl: 'τ (N/mm², clockwise +)',
     p1: 'σp', p2: 'σq', mx: 'τmax',
-    V: [m.sx, m.t], H: [m.sy, -m.t], J: { ...J, pt: [st.sx, st.t] }
+    V: [m.sx, m.t], H: [m.sy, -m.t]
   });
 }
 
 function drawReadings(m) {
-  const J = joint(m), u = v => fmt(v * 1e6, 1), n = normPlane, S = m.thP;
+  const u = v => fmt(v * 1e6, 1), n = normPlane, S = m.thP;
   const g = (title, color, rows) => `<div><h3 style="color:${color}">${title}</h3><table>` +
     rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('') + '</table></div>';
   $('readings').innerHTML =
-    g(`Joint (${fmt(J.alpha)}° ${J.sgn > 0 ? 'ccw' : 'cw'} from ${J.ref})`, '#8e44ad', [
-      ['Normal strain ε (µε)', u(J.st.ex)], ['Shear strain γ (µrad, cw +)', u(J.st.g)],
-      ['Plane normal θ (deg)', fmt(n(J.nAng))]]) +
     g('Maximum / minimum normal strain', '#1a8f5a', [
       ['εp maximum (µε)', u(m.ec + m.Re)], ['Plane P, θ (deg)', fmt(n(S))], ['γ on plane P (µrad)', '0'],
       ['εq minimum (µε)', u(m.ec - m.Re)], ['Plane Q, θ (deg)', fmt(n(S + 90))], ['γ on plane Q (µrad)', '0']]) +
@@ -367,6 +344,24 @@ function drawReadings(m) {
       ['+γmax/2 (µrad/2)', u(m.Re)], ['Plane S+, θ (deg)', fmt(n(S + 45))], ['ε on plane S+ (µε)', u(m.ec)],
       ['−γmax/2 (µrad/2)', u(-m.Re)], ['Plane S−, θ (deg)', fmt(n(S - 45))], ['ε on plane S− (µε)', u(m.ec)]]);
 }
+function drawPrincipalCalc(m) {
+  const ep = (m.ec + m.Re) * 1e6, eq = (m.ec - m.Re) * 1e6, Ek = m.E * 1000, nu = m.nu;
+  const sp = m.c + m.R, sq = m.c - m.R, k = Ek / (1 - nu * nu);
+  const par = x => x < 0 ? `(${fmt(x, 1)})` : fmt(x, 1);
+  const eqn = (name, a, b, an, bn, val) => `<div class="eq">
+    <div>${name} = E / (1 − ν²) × (${a} + ν·${b})</div>
+    <div>= ${fmt(Ek, 0)} / (1 − ${fmt(nu, 4)}²) × (${fmt(an, 1)} + ${fmt(nu, 4)}&nbsp;×&nbsp;${par(bn)}) × 10⁻⁶</div>
+    <div>= ${fmt(k, 0)} × ${par(an + nu * bn)} × 10⁻⁶</div>
+    <div>= <b>${fmt(val)} N/mm²</b></div></div>`;
+  $('pcalc').innerHTML =
+    `<p>Principal strains from the circle: ε<sub>p</sub> = ${fmt(ep, 1)} µε, ε<sub>q</sub> = ${fmt(eq, 1)} µε.<br>
+        E = ${fmt(m.E, 3)} GPa = ${fmt(Ek, 0)} N/mm², ν = ${fmt(nu, 4)}.</p>` +
+    eqn('σ<sub>p</sub>', 'ε<sub>p</sub>', 'ε<sub>q</sub>', ep, eq, sp) +
+    eqn('σ<sub>q</sub>', 'ε<sub>q</sub>', 'ε<sub>p</sub>', eq, ep, sq) +
+    `<div class="eq"><div>τ<sub>max</sub> = (σ<sub>p</sub> − σ<sub>q</sub>) / 2</div>
+      <div>= (${fmt(sp)} − ${par2(sq)}) / 2</div><div>= <b>${fmt(m.R)} N/mm²</b></div></div>`;
+}
+const par2 = x => x < 0 ? `(${fmt(x)})` : fmt(x);
 function drawSummary(m) {
   const u = v => fmt(v * 1e6, 1);
   const rows = [
@@ -621,13 +616,14 @@ function update() {
   drawMohr(m);
   drawMc(m);
   drawReadings(m);
+  drawPrincipalCalc(m);
   drawSummary(m);
 }
 $('rs').addEventListener('input', () => {      // set a sensible orientation when the rosette type changes
   const k = $('rs').value;
   $('rv').value = k === 'star' ? '1' : 'x';
 });
-['rs', 'rv', 'g1', 'g2', 'g3', 'E', 'nu', 'ja', 'jr', 'jd', 'mo'].forEach(id => $(id).addEventListener('input', update));
+['rs', 'rv', 'g1', 'g2', 'g3', 'E', 'nu', 'mo'].forEach(id => $(id).addEventListener('input', update));
 $('mcprev').addEventListener('click', () => { mcStep = Math.max(1, mcStep - 1); update(); });
 $('mcnext').addEventListener('click', () => { mcStep = Math.min(MC_STEPS, mcStep + 1); update(); });
 $('mcsteps').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { mcStep = +b.dataset.s; update(); } });
