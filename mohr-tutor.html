@@ -13,13 +13,13 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
          font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { padding: 18px 20px 6px; max-width: 1440px; margin: 0 auto; }
+  header { padding: 18px 20px 6px; max-width: 1880px; margin: 0 auto; }
   h1 { font-size: 1.5rem; margin: 0 0 4px; }
   h2 { font-size: 1.1rem; margin: 0 0 10px; }
   h3 { font-size: .98rem; margin: 14px 0 6px; }
   .sub { color: var(--mute); margin: 0; }
   a { color: var(--blue); }
-  .wrap { max-width: 1440px; margin: 0 auto; padding: 12px 20px 40px; }
+  .wrap { max-width: 1880px; margin: 0 auto; padding: 12px 20px 40px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
   .stack > * + * { margin-top: 16px; }
   button { font: inherit; font-size: .9rem; padding: 6px 12px; border-radius: 6px; cursor: pointer;
@@ -58,17 +58,17 @@
   .stepper button.done:not(.cur) { border-color: var(--ok); color: var(--ok); }
   .progress { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
   .progress div { height: 100%; background: var(--blue); transition: width .25s; }
-  .lesson { display: grid; grid-template-columns: minmax(340px, 460px) 1fr; gap: 16px; align-items: start; }
+  .lesson { display: grid; grid-template-columns: minmax(360px, 36%) 1fr; gap: 16px; align-items: start; }
   .lesson .card { padding: 12px 14px; }
   .lesson .stack > * + * { margin-top: 12px; }
   .lesson h2 { margin-bottom: 6px; }
   /* desktop: the diagram column stays on screen while the instructions scroll */
   @media (min-width: 901px) {
     .lesson > .stack:last-child { position: sticky; top: 8px; }
-    #mohr { max-height: calc(100vh - 150px); }
     /* sketch and its caption side by side to save height; wide delta sketch stays stacked */
     .elbody { display: flex; gap: 12px; align-items: center; }
-    .elbody .element { flex: 0 0 250px; margin: 0; }
+    .elbody .element { flex: 0 0 min(340px, 56%); max-width: none; margin: 0; }
+    .elbody .element svg { max-height: 340px; }
     .elbody.wide { display: block; }
     .elbody.wide .element { margin: 0 auto; }
     #elCard .caption { font-size: .82rem; margin-top: 2px; }
@@ -572,11 +572,17 @@ function arrow(x1, y1, x2, y2, color, w = 2.2, hl = 8, hw = 4) {
 }
 
 /* ================= Mohr circle ================= */
+// drawing size in SVG units: on desktop the height follows the screen so the diagram fills its sticky column
+function plotSize() {
+  if (window.innerWidth <= 900) return [640, 500];
+  const w = $('mohr').getBoundingClientRect().width || 640, h = Math.max(360, window.innerHeight - 160);
+  return [640, Math.round(Math.max(420, Math.min(960, 640 * h / w)))];
+}
 function drawMohr(m, level) {
   const svg = $('mohr'), M = MODES[S.mode];
   const pw = svg.getBoundingClientRect().width || 640;
   FS = Math.max(1, Math.min(1.7, 560 / pw));
-  const W = 640, H = 500, mg = 44;
+  const [W, H] = plotSize(), mg = 44;
   const R = Math.max(m.R, 1e-9), c = m.c;
   const pad = 0.3 * Math.max(R, Math.abs(c) * 0.15, 1e-9);
   const xlo = Math.min(c - R, 0) - pad, xhi = Math.max(c + R, 0) + pad, yr = R * 1.3;
@@ -1011,7 +1017,7 @@ function buildMcSteps(m) {
 }
 
 function drawMc(m, level) {
-  const svg = $('mohr'), W = 640, H = 500, mg = 40;
+  const svg = $('mohr'), [W, H] = plotSize(), mg = 40;
   const pw = svg.getBoundingClientRect().width || 640;
   FS = Math.max(1, Math.min(1.7, 560 / pw));
   const grey = '#8a93a3', orange = '#e08a00', lc = '#b36b00', blue = '#1f6feb', green = '#1a8f5a', teal = '#0e8a9b', purple = '#8e44ad', ink = '#1d2330';
@@ -1397,7 +1403,7 @@ document.addEventListener('keydown', e => {
 });
 let lastW = window.innerWidth;   // redraw only on width change (mobile keyboards fire height-only resizes)
 window.addEventListener('resize', () => {
-  if (window.innerWidth === lastW) return; lastW = window.innerWidth;
+  if (window.innerWidth === lastW && window.innerWidth <= 900) return; lastW = window.innerWidth;
   if (!S.mode) return;
   const m = model(); (m.mc ? drawMc : drawMohr)(m, STEPS[S.step].level);
 });
