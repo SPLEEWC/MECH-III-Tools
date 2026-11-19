@@ -7,6 +7,17 @@ Interactive single-page tool (plain HTML/JS, no build step).
 - Shows 2D plane stress elements (at 0°) with normal stresses and strains.
 - Input E and ν to get ε, γ. **Shear stress and shear strain are positive clockwise.**
 
+## Mohr's Circle Tutor (`mohr-tutor.html`)
+
+Self-learning tool that walks students through drawing Mohr's circle step by step.
+
+- Choose **stress** (σx, σy, τxy) or **strain** (εx, εy, γxy, or a 0°/45°/90° rosette) to begin.
+- 12 steps: given data → V & H points → axes & scale → plot → centre C → radius R → circle →
+  principal values → max shear → principal angle → inclined plane → summary.
+- The circle is built up on screen one step at a time; an element sketch shows the stresses/strains.
+- **Check yourself** boxes give instant feedback with hints; **Show working** reveals the full calculation.
+- Worked examples or the student's own values; suggested graph-paper scale for drawing by hand.
+
 ## Host on GitHub Pages
 
 1. Make sure `index.html` is at the root of the repository's default branch (e.g. `main`).
