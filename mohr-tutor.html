@@ -789,7 +789,9 @@ function buildMcSteps(m) {
     : `R = (√2 / 3) √[ (${e(0)} − ${e(1)})² + (${e(1)} − ${e(2)})² + (${e(2)} − ${e(0)})² ]`;
   const tip = {
     rect: 'Rectangular rosette: gauges at 0°, 45° and 90°. Gauges 1 and 3 are at 90°, so their points end up at opposite ends of a diameter.',
-    delta: 'Delta rosette: three gauges forming an equilateral triangle, 60° apart. Their points end up 120° apart on the circle.',
+    delta: 'Delta rosette: the three gauges form an equilateral triangle, so they do <b>not</b> pass through one point. ' +
+      'Before using McClintock\'s method, <b>rearrange</b> them: slide each gauge parallel to itself until all three cross at one point. ' +
+      'You get three lines 60° apart (see the sketch). Their points end up 120° apart on the circle.',
     star: 'Star rosette: three arms 120° apart. As lines, 120° apart is the same as 60° apart, so a star behaves exactly like a delta rosette.'
   }[m.kind];
   const t1 = m.twoP, dir = Math.abs(t1) < 1e-9 ? 'none' : t1 > 0 ? 'counter-clockwise' : 'clockwise';
@@ -830,10 +832,14 @@ function buildMcSteps(m) {
     work: `<div class="f">(${f(hi)} − (${f(lo)})) / ${fmt(m.scale, 3)} = <b>${fmt((hi - lo) / m.scale, 2)}</b> cm</div>`
   });
 
-  S_.push({ key: 'pole', short: 'Pole O', level: 3, el: 'arms', note: `New: the pole O on the gauge ${v + 1} line, with the gauge directions through it.`,
+  S_.push({ key: 'pole', short: 'Pole O', level: 3, el: 'arms', note: m.kind === 'delta' ? `New: the pole O on the gauge ${v + 1} line, with the rearranged delta gauges drawn through it.`
+      : `New: the pole O on the gauge ${v + 1} line, with the gauge directions through it.`,
     title: 'Pick the pole O and lay the rosette on it',
     body: `<ol>
         <li>Choose <b>any point O</b> on the vertical line of <b>${g(v)}</b>. The height does not matter: a different height just slides the whole construction up or down.</li>
+        ${m.kind === 'delta' ? `<li><b>Rearrange the delta first.</b> The triangle's sides do not meet at one point. Slide each gauge
+          <b>parallel to itself</b> (its direction does not change) so all three lines pass through O. This is allowed because the
+          strain is uniform over the small rosette: the reading depends only on the gauge's direction, not on where it sits.</li>` : ''}
         <li>At O, draw the direction of every gauge as in the rosette, turned so that ${g(v)} lies along that vertical line:</li>
       </ol>
       <ul>
@@ -844,6 +850,8 @@ function buildMcSteps(m) {
       <p class="hint">A gauge is a line, so only the angle between the lines matters (0°–90°).
         E.g. 120° between two gauges is the same line angle as 60°.</p>`,
     checks: [
+      m.kind === 'delta' && ch('slide', 'To rearrange the delta gauges through one point, each gauge is…', ['moved parallel to itself', 'rotated by 60°', 'rotated by 120°'],
+        'moved parallel to itself', 'A gauge measures strain along its direction, so its direction must not change. Only its position moves.'),
       ang('a1', `Angle between the ${g(a)} line and the vertical =`, m.arm(a).ang, `The gauges are ${Math.abs(m.deg[a] - m.deg[v])}° apart; if that is more than 90°, use 180° minus it.`),
       ang('a2', `Angle between the ${g(b)} line and the vertical =`, m.arm(b).ang, `The gauges are ${Math.abs(m.deg[b] - m.deg[v])}° apart; if that is more than 90°, use 180° minus it.`)
     ],
@@ -1065,48 +1073,104 @@ function drawMc(m, level) {
 }
 
 function drawRosettePanel(m, st) {
-  const W = 340, c = W / 2, L = 112, lc = '#b36b00', orange = '#e08a00', green = '#1a8f5a', grey = '#8a93a3';
+  const lc = '#b36b00', orange = '#e08a00', green = '#1a8f5a', grey = '#8a93a3', blue = '#1f6feb';
   const aDeg = i => 90 + m.deg[i] - m.deg[m.v];               // drawing angle of gauge i (ccw from horizontal)
   const U = a => [Math.cos(a * D2R), -Math.sin(a * D2R)];
-  let o = line(c, 24, c, W - 24, grey, 1, 'stroke-dasharray="3 4"') + text(c + 6, 20, 'vertical', { size: 10, fill: grey, anchor: 'start' });
-  const gauge = (x1, y1, x2, y2, i) => line(x1, y1, x2, y2, orange, i === m.v ? 9 : 7, 'stroke-linecap="round" opacity=".75"');
-  if (m.kind === 'delta') {
-    const rho = 100, g0 = aDeg(0) - 30;
+  const gauge = (x1, y1, x2, y2, i, op = '.75') => line(x1, y1, x2, y2, orange, i === m.v ? 9 : 7, `stroke-linecap="round" opacity="${op}"`);
+  const reading = i => `(${fmt(m.r[i], 1)})`;
+  const delta = m.kind === 'delta';
+  // delta: equilateral triangle centred at (cx, cy) whose sides run along the gauge directions
+  const triSides = (cx, cy, rho) => {
+    const g0 = aDeg(0) - 30, out = [];
     for (let k = 0; k < 3; k++) {
-      const a1 = g0 + k * 120, a2 = a1 + 120, p1 = U(a1), p2 = U(a2), sd = (((a1 + 150) % 180) + 180) % 180;
-      const i = [0, 1, 2].find(j => Math.abs((((aDeg(j) - sd) % 180) + 180) % 180) < 1e-6 || Math.abs((((aDeg(j) - sd) % 180) + 180) % 180 - 180) < 1e-6);
-      const x1 = c + rho * p1[0], y1 = c + rho * p1[1], x2 = c + rho * p2[0], y2 = c + rho * p2[1];
-      o += gauge(x1, y1, x2, y2, i);
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, ox = (mx - c) * 0.35, oy = (my - c) * 0.35;
-      o += text(mx + ox, my + oy, `${i + 1}`, { fill: lc, bold: true, size: 15 }) +
-        text(mx + ox, my + oy + 15, `(${fmt(m.r[i], 1)})`, { fill: lc, size: 10.5 });
+      const a1 = g0 + k * 120, p1 = U(a1), p2 = U(a1 + 120), sd = (((a1 + 150) % 180) + 180) % 180;
+      const i = [0, 1, 2].find(j => { const d = (((aDeg(j) - sd) % 180) + 180) % 180; return d < 1e-6 || d > 180 - 1e-6; });
+      const x1 = cx + rho * p1[0], y1 = cy + rho * p1[1], x2 = cx + rho * p2[0], y2 = cy + rho * p2[1];
+      out.push({ i, x1, y1, x2, y2, mx: (x1 + x2) / 2, my: (y1 + y2) / 2 });
     }
+    return out;
+  };
+  // principal directions drawn through (cx, cy)
+  const principal = (cx, cy, LL) => {
+    const ap = aDeg(0) + m.thP, p = U(ap), q = U(ap + 90), r0 = U(aDeg(0));
+    let o = line(cx - r0[0] * LL, cy - r0[1] * LL, cx + r0[0] * LL, cy + r0[1] * LL, lc, 1, 'stroke-dasharray="2 3"');
+    o += arrow(cx - p[0] * LL, cy - p[1] * LL, cx + p[0] * LL, cy + p[1] * LL, green, 2.4) + arrow(cx + p[0] * LL, cy + p[1] * LL, cx - p[0] * LL, cy - p[1] * LL, green, 2.4);
+    o += text(cx + p[0] * (LL + 4) + (p[0] >= 0 ? -6 : 6), cy + p[1] * (LL + 4) - 10, 'εp', { fill: green, bold: true, size: 14 });
+    o += line(cx - q[0] * LL * 0.8, cy - q[1] * LL * 0.8, cx + q[0] * LL * 0.8, cy + q[1] * LL * 0.8, green, 1.6, 'stroke-dasharray="6 4"') +
+      text(cx + q[0] * (LL * 0.8 + 12), cy + q[1] * (LL * 0.8 + 12), 'εq', { fill: green, bold: true, size: 13 });
+    if (Math.abs(m.thP) > 0.05) {
+      const rr = LL * 0.5, A0 = aDeg(0) * D2R, A1 = ap * D2R, pp = t => `${cx + rr * Math.cos(t)} ${cy - rr * Math.sin(t)}`, am = (A0 + A1) / 2;
+      o += `<path d="M ${pp(A0)} A ${rr} ${rr} 0 0 ${A1 > A0 ? 0 : 1} ${pp(A1)}" fill="none" stroke="${green}" stroke-width="1.8"/>` +
+        text(cx + (rr + 16) * Math.cos(am), cy - (rr + 16) * Math.sin(am), `θp ${fa(Math.abs(m.thP))}°`, { fill: green, bold: true, size: 11 });
+    }
+    return o;
+  };
+  const showP = st.el === 'p' && m.R > 1e-9;
+  let o = '', W = 340, H = 340, note;
+
+  if (delta) {
+    // left: as installed (triangle); right: gauges slid parallel to themselves into one point
+    const narrow = ($('element').parentElement.getBoundingClientRect().width || 600) < 480;
+    let cl, cr, lyc, cy;
+    if (narrow) { W = 340; H = 640; cl = cr = 170; lyc = 150; cy = 470; }
+    else { W = 600; H = 330; cl = 130; cr = 440; lyc = cy = 170; }
+    const rho = 92, top = narrow ? 330 : 18;
+    o += text(cl, 18, 'As installed (triangle)', { bold: true, size: 13 }) + text(cr, top, 'Rearranged through one point', { bold: true, size: 13 });
+    const sl = triSides(cl, lyc, rho);
+    sl.forEach(s => {
+      o += gauge(s.x1, s.y1, s.x2, s.y2, s.i);
+      const ox = (s.mx - cl) * 0.38, oy = (s.my - lyc) * 0.38;
+      o += text(s.mx + ox, s.my + oy, `${s.i + 1}`, { fill: lc, bold: true, size: 15 }) + text(s.mx + ox, s.my + oy + 15, reading(s.i), { fill: lc, size: 10.5 });
+    });
+    o += narrow
+      ? arrow(cl, 262, cl, 304, grey, 2, 10, 5) + text(cl + 12, 276, 'slide each gauge', { size: 10.5, fill: '#5b6475', anchor: 'start' }) +
+        text(cl + 12, 290, 'parallel to itself', { size: 10.5, fill: '#5b6475', anchor: 'start' })
+      : arrow(250, cy, 318, cy, grey, 2, 10, 5) + text(284, cy - 26, 'slide each gauge', { size: 10.5, fill: '#5b6475' }) +
+        text(284, cy - 13, 'parallel to itself', { size: 10.5, fill: '#5b6475' });
+    // ghost triangle + translation arrows (side mid-point → centre is perpendicular to the side)
+    const sr = triSides(cr, cy, rho);
+    sr.forEach(s => {
+      o += line(s.x1, s.y1, s.x2, s.y2, orange, 2, 'stroke-dasharray="4 4" opacity=".45"');
+      o += arrow(s.mx, s.my, cr + (s.mx - cr) * 0.22, cy + (s.my - cy) * 0.22, blue, 1.4, 7, 3.5);
+    });
+    const LL = 112;
+    [0, 1, 2].forEach(i => {
+      const p = U(aDeg(i)), up = p[1] <= 0 ? 1 : -1;
+      o += gauge(cr - p[0] * LL, cy - p[1] * LL, cr + p[0] * LL, cy + p[1] * LL, i, showP ? '.45' : '.8');
+      o += text(cr + up * p[0] * (LL + 14), cy + up * p[1] * (LL + 14), `${i + 1}`, { fill: lc, bold: true, size: 15 });
+    });
+    // 60° between neighbouring lines (upper half)
+    const dirs = [0, 1, 2].map(i => ((aDeg(i) % 180) + 180) % 180).sort((x, y) => x - y);
+    [[dirs[0], dirs[1]], [dirs[1], dirs[2]]].forEach(([d1, d2]) => {
+      const am = (d1 + d2) / 2, rr = 44, pp = t => `${cr + rr * Math.cos(t * D2R)} ${cy - rr * Math.sin(t * D2R)}`;
+      o += `<path d="M ${pp(d1)} A ${rr} ${rr} 0 0 0 ${pp(d2)}" fill="none" stroke="${grey}" stroke-width="1.2"/>` +
+        text(cr + (rr + 14) * Math.cos(am * D2R), cy - (rr + 14) * Math.sin(am * D2R), `${fa(d2 - d1)}°`, { size: 11, fill: '#5b6475', bold: true });
+    });
+    o += line(cr, top + 16, cr, H - 12, grey, 1, 'stroke-dasharray="3 4"') + `<circle cx="${cr}" cy="${cy}" r="4.5" fill="${blue}"/>` +
+      text(cr + 8, cy + 14, 'O', { fill: blue, bold: true, size: 13, anchor: 'start' });
+    o += line(cl, 34, cl, narrow ? 250 : H - 12, grey, 1, 'stroke-dasharray="3 4"') + text(cl + 6, 40, 'vertical', { size: 10, fill: grey, anchor: 'start' });
+    if (showP) o += principal(cr, cy, 125);
+    note = `A delta's gauges do not pass through one point. Strain is uniform over the small rosette, so each gauge can slide parallel to itself (blue arrows) until all three cross at one point: three lines 60° apart, with gauge ${m.v + 1} vertical. This is the pattern you draw through the pole O. Numbers in brackets are the readings (µε).`;
+    if (showP) note += ` Green: principal directions; εp is ${fa(Math.abs(m.thP))}° ${sgnWord(m.thP)} from gauge 1 (dotted line); εq is at 90° to it.`;
   } else {
+    const c = W / 2, L = 112;
+    o += line(c, 24, c, W - 24, grey, 1, 'stroke-dasharray="3 4"') + text(c + 6, 20, 'vertical', { size: 10, fill: grey, anchor: 'start' });
     [0, 1, 2].forEach(i => {
       const p = U(aDeg(i)), x2 = c + p[0] * L, y2 = c + p[1] * L;
       o += gauge(c + p[0] * 14, c + p[1] * 14, x2, y2, i);
       o += text(c + p[0] * (L + 16), c + p[1] * (L + 16), `${i + 1}`, { fill: lc, bold: true, size: 15 }) +
-        text(c + p[0] * (L + 16), c + p[1] * (L + 16) + 15, `(${fmt(m.r[i], 1)})`, { fill: lc, size: 10.5 });
+        text(c + p[0] * (L + 16), c + p[1] * (L + 16) + 15, reading(i), { fill: lc, size: 10.5 });
     });
     o += `<circle cx="${c}" cy="${c}" r="4" fill="${lc}"/>`;
-  }
-  let note = `Numbers in brackets are the readings (µε). ${ROS[m.kind].name} rosette, gauges at ${m.deg.join('°, ')}° (ccw from gauge 1), turned so gauge ${m.v + 1} is vertical as in the construction.`;
-  if (st.el === 'p' && m.R > 1e-9) {
-    const ap = aDeg(0) + m.thP, p = U(ap), q = U(ap + 90), r0 = U(aDeg(0)), LL = 140;
-    o += line(c - r0[0] * LL, c - r0[1] * LL, c + r0[0] * LL, c + r0[1] * LL, lc, 1, 'stroke-dasharray="2 3"');
-    o += arrow(c - p[0] * LL, c - p[1] * LL, c + p[0] * LL, c + p[1] * LL, green, 2.4) + arrow(c + p[0] * LL, c + p[1] * LL, c - p[0] * LL, c - p[1] * LL, green, 2.4);
-    o += text(c + p[0] * (LL + 4) + (p[0] >= 0 ? -6 : 6), c + p[1] * (LL + 4) - 10, 'εp', { fill: green, bold: true, size: 14 });
-    o += line(c - q[0] * 110, c - q[1] * 110, c + q[0] * 110, c + q[1] * 110, green, 1.6, 'stroke-dasharray="6 4"') +
-      text(c + q[0] * 122, c + q[1] * 122, 'εq', { fill: green, bold: true, size: 13 });
-    if (Math.abs(m.thP) > 0.05) {
-      const rr = 72, A0 = aDeg(0) * D2R, A1 = ap * D2R, pp = t => `${c + rr * Math.cos(t)} ${c - rr * Math.sin(t)}`, am = (A0 + A1) / 2;
-      o += `<path d="M ${pp(A0)} A ${rr} ${rr} 0 0 ${A1 > A0 ? 0 : 1} ${pp(A1)}" fill="none" stroke="${green}" stroke-width="1.8"/>` +
-        text(c + (rr + 16) * Math.cos(am), c - (rr + 16) * Math.sin(am), `θp ${fa(Math.abs(m.thP))}°`, { fill: green, bold: true, size: 11 });
+    note = `Numbers in brackets are the readings (µε). ${ROS[m.kind].name} rosette, gauges at ${m.deg.join('°, ')}° (ccw from gauge 1), turned so gauge ${m.v + 1} is vertical as in the construction.`;
+    if (showP) {
+      o += principal(c, c, 140);
+      note = `Green: principal directions. εp is ${fa(Math.abs(m.thP))}° ${sgnWord(m.thP)} from gauge 1 (dotted line); εq is at 90° to it.`;
     }
-    note = `Green: principal directions. εp is ${fa(Math.abs(m.thP))}° ${sgnWord(m.thP)} from gauge 1 (dotted line); εq is at 90° to it.`;
   }
-  $('elTitle').textContent = `${ROS[m.kind].name} rosette (gauge ${m.v + 1} vertical)`;
-  $('element').innerHTML = `<svg viewBox="0 0 ${W} ${W}">${o}</svg>`;
+  $('elTitle').textContent = delta ? `Delta rosette: rearranging the gauges (gauge ${m.v + 1} vertical)` : `${ROS[m.kind].name} rosette (gauge ${m.v + 1} vertical)`;
+  $('element').innerHTML = `<svg viewBox="0 0 ${W} ${H}">${o}</svg>`;
+  $('element').style.maxWidth = delta && W > 400 ? '600px' : '';
   $('elNote').textContent = note;
 }
 
