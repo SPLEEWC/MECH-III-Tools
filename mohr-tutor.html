@@ -13,13 +13,13 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
          font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { padding: 18px 20px 6px; max-width: 1200px; margin: 0 auto; }
+  header { padding: 18px 20px 6px; max-width: 1440px; margin: 0 auto; }
   h1 { font-size: 1.5rem; margin: 0 0 4px; }
   h2 { font-size: 1.1rem; margin: 0 0 10px; }
   h3 { font-size: .98rem; margin: 14px 0 6px; }
   .sub { color: var(--mute); margin: 0; }
   a { color: var(--blue); }
-  .wrap { max-width: 1200px; margin: 0 auto; padding: 12px 20px 40px; }
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 12px 20px 40px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
   .stack > * + * { margin-top: 16px; }
   button { font: inherit; font-size: .9rem; padding: 6px 12px; border-radius: 6px; cursor: pointer;
@@ -50,17 +50,51 @@
   .topbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 12px; }
   .badge { background: var(--ink); color: #fff; border-radius: 999px; padding: 3px 12px; font-size: .85rem; font-weight: 600; }
   .grow { flex: 1; }
-  .stepper { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .stepper { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  @media (max-width: 600px) { .stepper { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+    .stepper button { flex: none; } }
   .stepper button { padding: 4px 10px; font-size: .8rem; border-radius: 999px; }
   .stepper button.cur { background: var(--blue); color: #fff; border-color: var(--blue); }
   .stepper button.done:not(.cur) { border-color: var(--ok); color: var(--ok); }
   .progress { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
   .progress div { height: 100%; background: var(--blue); transition: width .25s; }
-  .lesson { display: grid; grid-template-columns: minmax(320px, 440px) 1fr; gap: 16px; align-items: start; }
-  @media (max-width: 900px) { .lesson { grid-template-columns: 1fr; } }
+  .lesson { display: grid; grid-template-columns: minmax(340px, 460px) 1fr; gap: 16px; align-items: start; }
+  .lesson .card { padding: 12px 14px; }
+  .lesson .stack > * + * { margin-top: 12px; }
+  .lesson h2 { margin-bottom: 6px; }
+  /* desktop: the diagram column stays on screen while the instructions scroll */
+  @media (min-width: 901px) {
+    .lesson > .stack:last-child { position: sticky; top: 8px; }
+    #mohr { max-height: calc(100vh - 150px); }
+    /* sketch and its caption side by side to save height; wide delta sketch stays stacked */
+    .elbody { display: flex; gap: 12px; align-items: center; }
+    .elbody .element { flex: 0 0 250px; margin: 0; }
+    .elbody.wide { display: block; }
+    .elbody.wide .element { margin: 0 auto; }
+    #elCard .caption { font-size: .82rem; margin-top: 2px; }
+    .exs button { padding: 2px 8px; }
+  }
+  /* phones/tablets: one column, ordered sketch → data → diagram → instructions */
+  @media (max-width: 900px) {
+    .lesson { display: flex; flex-direction: column; gap: 12px; }
+    .lesson .stack { display: contents; }
+    #elCard { order: 1; } #dataCard { order: 2; } #circleCard { order: 3; } #stepCard { order: 4; }
+    .lesson .stack > * + * { margin-top: 0; }
+    .element svg { max-height: 300px; }
+    .elbody.wide .element svg { max-height: none; }
+  }
+  body.inlesson header { padding-top: 12px; }
+  body.inlesson header .sub { font-size: .85rem; }
   .data .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .data .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .exs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .exs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+  .dhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .dhead h2 { margin: 0; }
+  .dsum { flex: 1; color: var(--mute); font-size: .88rem; }
+  .dhead button { font-size: .8rem; padding: 2px 10px; }
+  .data.open .dsum { display: none; }
+  .data:not(.open) .dfields { display: none; }
+  .data.open .dfields { margin-top: 8px; }
   .exs button { font-size: .8rem; padding: 3px 9px; }
   .exs button.on { border-color: var(--blue); color: var(--blue); font-weight: 600; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
@@ -182,8 +216,10 @@
       </section>
       <section class="card" id="elCard">
         <h2 id="elTitle">Element</h2>
-        <div class="element" id="element"></div>
-        <p class="caption" id="elNote"></p>
+        <div class="elbody" id="elBody">
+          <div class="element" id="element"></div>
+          <p class="caption" id="elNote"></p>
+        </div>
       </section>
     </div>
   </div>
@@ -727,7 +763,10 @@ function drawElement(m, step) {
       : 'Blue arrows: normal stress (pointing out = tension). Red arrows: shear stress.';
   }
   $('elTitle').textContent = title;
+  $('elBody').classList.remove('wide');
+  FS = window.innerWidth > 900 ? 1.3 : 1.1;               // larger labels in the small sketch
   $('element').innerHTML = elementSVG(m, deg, kind);
+  FS = 1;
   $('elNote').textContent = note;
 }
 
@@ -1154,7 +1193,7 @@ function drawRosettePanel(m, st) {
     note = `A delta's gauges do not pass through one point. Strain is uniform over the small rosette, so each gauge can slide parallel to itself (blue arrows) until all three cross at one point: three lines 60° apart, with gauge ${m.v + 1} vertical. This is the pattern you draw through the pole O. Numbers in brackets are the readings (µε).`;
     if (showP) note += ` Green: principal directions; εp is ${fa(Math.abs(m.thP))}° ${sgnWord(m.thP)} from gauge 1 (dotted line); εq is at 90° to it.`;
   } else {
-    const c = W / 2, L = 112;
+    const c = W / 2, L = 112; FS = window.innerWidth > 900 ? 1.3 : 1.1;
     o += line(c, 24, c, W - 24, grey, 1, 'stroke-dasharray="3 4"') + text(c + 6, 20, 'vertical', { size: 10, fill: grey, anchor: 'start' });
     [0, 1, 2].forEach(i => {
       const p = U(aDeg(i)), x2 = c + p[0] * L, y2 = c + p[1] * L;
@@ -1173,6 +1212,7 @@ function drawRosettePanel(m, st) {
   FS = 1;
   $('element').innerHTML = `<svg viewBox="0 0 ${W} ${H}">${o}</svg>`;
   $('element').style.maxWidth = delta && W > 400 ? '600px' : '';
+  $('elBody').classList.toggle('wide', delta);
   $('elNote').textContent = note;
 }
 
@@ -1196,7 +1236,9 @@ function renderData() {
       <div class="row">${[1, 2, 3].map(i => `<label>ε<sub>${i}</sub> (${u})<input type="number" step="any" data-k="g${i}" value="${I['g' + i]}"></label>`).join('')}</div>
       <p class="hint">Gauge angles are measured counter-clockwise from gauge 1. Readings in µε (10<sup>−6</sup>).</p>`;
   }
-  $('dataCard').innerHTML = `<h2>Given data</h2><div class="exs">${exs}</div>${fields}`;
+  $('dataCard').innerHTML = `<div class="dhead"><h2>Given data</h2><span class="dsum" id="dsum"></span>
+      <button type="button" id="dtoggle"></button></div><div class="dfields"><div class="exs">${exs}</div>${fields}</div>`;
+  $('dtoggle').onclick = () => { S.dataOpen = !$('dataCard').classList.contains('open'); setDataCard(); };
   $('dataCard').querySelectorAll('[data-ex]').forEach(b => b.onclick = () => {
     const i = +b.dataset.ex; S.ex = i;
     if (i >= 0) loadExample(M.examples[i]);
@@ -1217,6 +1259,17 @@ function renderData() {
     resetAnswers(); render();
   }));
 }
+// outside step 1 the data card shrinks to a one-line summary (Edit opens it again)
+function setDataCard() {
+  const I = S.inp, f = v => fmt(+v || 0);
+  const open = S.step === 0 || S.dataOpen;
+  $('dataCard').classList.toggle('open', open);
+  $('dsum').textContent = S.mode === 'stress'
+    ? `σx = ${f(I.x)}, σy = ${f(I.y)}, τxy = ${f(I.s)} N/mm²`
+    : `${ROS[I.kind].name}: ε1 = ${f(I.g1)}, ε2 = ${f(I.g2)}, ε3 = ${f(I.g3)} µε; gauge ${+I.pole + 1} vertical`;
+  $('dtoggle').textContent = open ? (S.step === 0 ? '' : 'Hide') : 'Edit';
+  $('dtoggle').hidden = S.step === 0;
+}
 function loadExample(e) {
   const base = S.mode === 'strain' ? { kind: 'rect', g1: 0, g2: 0, g3: 0, pole: 1 } : { x: 0, y: 0, s: 0 };
   S.inp = Object.assign(base, e);
@@ -1231,6 +1284,7 @@ function render() {
   STEPS = buildSteps(m);
   S.step = Math.max(0, Math.min(S.step, STEPS.length - 1));
   const st = STEPS[S.step];
+  setDataCard();
 
   // stepper
   $('stepper').innerHTML = STEPS.map((s, i) => {
@@ -1312,14 +1366,15 @@ function checkAnswer(st, k) {
 function go(i) {
   if (i < 0 || i >= STEPS.length) return;
   S.step = i; render();
-  if (window.innerWidth < 900) $('stepCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (window.innerWidth <= 900) $('circleCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  else if ($('stepCard').getBoundingClientRect().top < 0) $('stepCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function start(mode) {
-  S.mode = mode; S.step = 0; S.ex = 0; resetAnswers();
+  S.mode = mode; S.step = 0; S.ex = 0; S.dataOpen = false; resetAnswers();
   S.joint = mode === 'stress' ? { a: 30, dir: 'ccw' } : { a: 30, dir: 'ccw' };
   loadExample(MODES[mode].examples[0]);
-  $('home').hidden = true; $('lesson').hidden = false;
+  $('home').hidden = true; $('lesson').hidden = false; document.body.classList.add('inlesson');
   $('modeBadge').textContent = MODES[mode].title;
   $('switchMode').textContent = `Switch to ${mode === 'stress' ? 'strain' : 'stress'}`;
   try { history.replaceState(null, '', '#' + mode); } catch (e) {}
@@ -1328,7 +1383,7 @@ function start(mode) {
   renderData(); render(); window.scrollTo(0, 0);
 }
 function home() {
-  S.mode = null; $('lesson').hidden = true; $('home').hidden = false;
+  S.mode = null; $('lesson').hidden = true; $('home').hidden = false; document.body.classList.remove('inlesson');
   try { history.replaceState(null, '', location.pathname); } catch (e) {}
 }
 
