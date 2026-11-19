@@ -31,7 +31,8 @@ Interactive single-page tools (plain HTML/JS, no build step).
 
 Self-learning tool that walks students through drawing Mohr's circle step by step.
 
-- Choose **stress** (σx, σy, τxy) or **strain** (εx, εy, γxy, or a 0°/45°/90° rosette) to begin.
+- Choose **stress** (σx, σy, τxy) or **strain** to begin.
+- Strain uses **McClintock's method** for **rectangular** (0°/45°/90°), **delta** (0°/60°/120°) and **star** (0°/120°/240°) rosettes, with any gauge chosen as the vertical (pole) gauge: 10 steps from the vertical lines through the readings, the pole O and gauge lines, perpendicular bisectors and circle, to εp, εq, γmax and the principal direction.
 - 12 steps: given data → V & H points → axes & scale → plot → centre C → radius R → circle →
   principal values → max shear → principal angle → inclined plane → summary.
 - The circle is built up on screen one step at a time; an element sketch shows the stresses/strains.

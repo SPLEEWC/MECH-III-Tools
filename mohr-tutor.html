@@ -135,8 +135,8 @@
           <text x="80" y="18" font-size="13" font-weight="700" fill="#e08a00">ε</text>
         </svg>
         <div><b>Mohr's circle for STRAIN</b>
-          <span>Start from ε<sub>x</sub>, ε<sub>y</sub> and γ<sub>xy</sub> (or a 0°/45°/90° strain-gauge rosette).
-            Find principal strains, maximum shear strain and their directions.</span></div>
+          <span>Start from three strain-gauge readings on a <b>rectangular</b>, <b>delta</b> or <b>star</b> rosette and
+            draw the circle with <b>McClintock's method</b>. Find principal strains, maximum shear strain and their directions.</span></div>
       </button>
     </div>
   </section>
@@ -205,12 +205,12 @@ const MODES = {
     ]
   },
   strain: {
-    title: "Mohr's circle for strain", N: 'ε', T: 'γ/2', u: 'µε', dp: 1,
+    title: "Mohr's circle for strain (McClintock's method)", N: 'ε', T: 'γ/2', u: 'µε', dp: 1,
     examples: [
-      { label: 'Example 1', src: 'direct', x: 600, y: -200, s: 400 },
-      { label: 'Example 2', src: 'direct', x: -300, y: 200, s: -500 },
-      { label: 'Rosette 1', src: 'rosette', ra: 500, rb: 300, rc: -100 },
-      { label: 'Rosette 2', src: 'rosette', ra: -200, rb: 450, rc: 400 }
+      { label: 'Rectangular', kind: 'rect', g1: 600, g2: 100, g3: 200, pole: 1 },
+      { label: 'Delta', kind: 'delta', g1: 400, g2: -150, g3: 250, pole: 0 },
+      { label: 'Star', kind: 'star', g1: -200, g2: 350, g3: 500, pole: 0 },
+      { label: 'Rectangular 2', kind: 'rect', g1: -300, g2: 250, g3: 400, pole: 1 }
     ]
   }
 };
@@ -236,11 +236,9 @@ const sub = (a, b) => `${a}<sub>${b}</sub>`;
 
 /* ================= model ================= */
 function model() {
-  const isStrain = S.mode === 'strain', I = S.inp;
-  let x = +I.x || 0, y = +I.y || 0, s = +I.s || 0;          // s = τ (stress) or γ (strain), clockwise +
-  if (isStrain && I.src === 'rosette') {
-    x = +I.ra || 0; y = +I.rc || 0; s = x + y - 2 * (+I.rb || 0);
-  }
+  if (S.mode === 'strain') return mcModel();
+  const isStrain = false, I = S.inp;
+  const x = +I.x || 0, y = +I.y || 0, s = +I.s || 0;        // s = τ, clockwise +
   const t = isStrain ? s / 2 : s;                           // vertical coordinate of V
   const c = (x + y) / 2, d = (x - y) / 2, R = Math.hypot(d, t);
   const phi = R > 1e-12 ? Math.atan2(t, d) / D2R : 0;       // angle of CV from +N axis (deg, ccw +)
@@ -260,6 +258,7 @@ function stateAt(m, deg) {                                   // element rotated 
 
 /* ================= steps ================= */
 function buildSteps(m) {
+  if (m.mc) return buildMcSteps(m);
   const M = MODES[S.mode], N = M.N, u = M.u, f = v => fmt(v), str = m.isStrain;
   const V = str ? `(${sub('ε', 'x')}, ${sub('γ', 'xy')}/2)` : `(${sub('σ', 'x')}, ${sub('τ', 'xy')})`;
   const Hc = str ? `(${sub('ε', 'y')}, −${sub('γ', 'xy')}/2)` : `(${sub('σ', 'y')}, −${sub('τ', 'xy')})`;
@@ -291,49 +290,6 @@ function buildSteps(m) {
       ],
       work: `<p>Given: ${sub('σ', 'x')} = ${f(m.x)}, ${sub('σ', 'y')} = ${f(m.y)}, ${sub('τ', 'xy')} = ${f(m.s)} ${u}
         (${m.s >= 0 ? 'clockwise' : 'anticlockwise'} on the vertical faces).</p>`
-    });
-  } else if (S.inp.src === 'rosette') {
-    steps.push({ key: 'given', short: 'Rosette', level: 1, el: 0,
-      title: 'Convert the rosette readings to ε<sub>x</sub>, ε<sub>y</sub>, γ<sub>xy</sub>',
-      body: `<p>A 0°/45°/90° rectangular rosette has three gauges: <b>a</b> along x (0°), <b>b</b> at 45° counter-clockwise from x,
-          and <b>c</b> along y (90°).</p>
-        <p>Readings: ${sub('ε', 'a')} = <b>${f(+S.inp.ra || 0)}</b>, ${sub('ε', 'b')} = <b>${f(+S.inp.rb || 0)}</b>,
-          ${sub('ε', 'c')} = <b>${f(+S.inp.rc || 0)}</b> ${u}.</p>
-        <ol>
-          <li>Gauges a and c read the normal strains directly: ${sub('ε', 'x')} = ${sub('ε', 'a')}, ${sub('ε', 'y')} = ${sub('ε', 'c')}.</li>
-          <li>The 45° gauge gives the shear strain (clockwise positive):</li>
-        </ol>
-        <div class="f">${sub('γ', 'xy')} = ${sub('ε', 'x')} + ${sub('ε', 'y')} − 2${sub('ε', 'b')}</div>
-        <div class="tip">Many textbooks use anticlockwise-positive shear and write γ = 2ε<sub>b</sub> − ε<sub>x</sub> − ε<sub>y</sub>.
-          That is the same physical strain with the opposite sign.</div>`,
-      checks: [
-        val('ex', `${sub('ε', 'x')} =`, m.x, 'Gauge a lies along x.'),
-        val('ey', `${sub('ε', 'y')} =`, m.y, 'Gauge c lies along y.'),
-        val('g', `${sub('γ', 'xy')} =`, m.s, 'Use γ = εx + εy − 2εb. Watch the signs of negative readings.')
-      ],
-      work: `<div class="f">${sub('γ', 'xy')} = ${f(m.x)} + (${f(m.y)}) − 2(${f(+S.inp.rb || 0)}) = <b>${f(m.s)}</b> ${u}</div>
-        <p>So ${sub('ε', 'x')} = ${f(m.x)}, ${sub('ε', 'y')} = ${f(m.y)}, ${sub('γ', 'xy')} = ${f(m.s)} ${u}
-        (${m.s >= 0 ? 'clockwise' : 'anticlockwise'}).</p>`
-    });
-  } else {
-    steps.push({ key: 'given', short: 'Given data', level: 1, el: 0,
-      title: 'Understand the given strains',
-      body: `<p>The element on the right shows how a small square deforms (greatly exaggerated, orange dashed).</p>
-        <ul>
-          <li>${sub('ε', 'x')} = <b>${f(m.x)}</b> ${u} is the normal strain in x; ${sub('ε', 'y')} = <b>${f(m.y)}</b> ${u} in y.
-            Extension (stretching) is <b>+</b>, contraction is <b>−</b>.</li>
-          <li>${sub('γ', 'xy')} = <b>${f(m.s)}</b> ${u} is the shear strain (change of the right angle).
-            It is <b>positive clockwise</b>, i.e. the same sense as a clockwise shear stress on the vertical faces.</li>
-          <li>1 µε = 10<sup>−6</sup> (micro-strain).</li>
-        </ul>
-        <div class="tip">Mohr's strain circle plots <b>γ/2</b>, not γ, on the vertical axis. Keep this in mind for the next step.</div>`,
-      checks: [
-        Math.abs(m.x) > 1e-9 && ch('xsense', 'In the x direction the element is…', ['stretched', 'shortened'],
-          m.x > 0 ? 'stretched' : 'shortened', 'Positive normal strain means extension.'),
-        Math.abs(m.s) > 1e-9 && ch('gsense', 'Is the shear strain clockwise or anticlockwise?', ['clockwise', 'anticlockwise'],
-          m.s > 0 ? 'clockwise' : 'anticlockwise', 'Positive γ is clockwise in this tutor.')
-      ],
-      work: `<p>Given: ${sub('ε', 'x')} = ${f(m.x)}, ${sub('ε', 'y')} = ${f(m.y)}, ${sub('γ', 'xy')} = ${f(m.s)} ${u}.</p>`
     });
   }
 
@@ -775,6 +731,385 @@ function drawElement(m, step) {
   $('elNote').textContent = note;
 }
 
+/* ================= strain: McClintock's method ================= */
+const ROS = {
+  rect: { name: 'Rectangular', deg: [0, 45, 90], step: 45, pole: 1 },
+  delta: { name: 'Delta', deg: [0, 60, 120], step: 60, pole: 0 },
+  star: { name: 'Star', deg: [0, 120, 240], step: 120, pole: 0 }
+};
+function mcModel() {
+  const I = S.inp, kind = ROS[I.kind] ? I.kind : 'rect', deg = ROS[kind].deg, th = deg.map(a => a * D2R);
+  const r = [+I.g1 || 0, +I.g2 || 0, +I.g3 || 0], v = Math.max(0, Math.min(2, +I.pole || 0));
+  // fit ε(θ) = C + de·cos2θ − e·sin2θ through the three gauges (e = γ/2 for gauge-1 direction, clockwise +)
+  const A = th.map(t => [1, Math.cos(2 * t), -Math.sin(2 * t)]);
+  const det3 = M => M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0]) + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]);
+  const D = det3(A), [C, de, e] = [0, 1, 2].map(j => det3(A.map((row, i) => row.map((x, k) => k === j ? r[i] : x))) / D);
+  const R = Math.hypot(de, e), phi = R > 1e-12 ? Math.atan2(e, de) / D2R : 0;   // angle of C→pt 1 (deg, ccw +)
+  // true gauge points on the circle (centre at height 0); the pole O is the mirror of the pole gauge's point
+  const G = deg.map(a => { const q = (phi + 2 * a) * D2R; return [C + R * Math.cos(q), R * Math.sin(q)]; });
+  const O = [r[v], -G[v][1]], others = [0, 1, 2].filter(i => i !== v);
+  const P = [0, 1, 2].map(i => i === v ? O : G[i]);
+  const arm = i => {                                           // gauge i line through O, rosette turned so gauge v is vertical
+    const d = (deg[i] - deg[v]) * D2R; let ux = -Math.sin(d), uy = Math.cos(d);
+    if (uy < -1e-12) { ux = -ux; uy = -uy; }
+    const horiz = Math.abs(uy) < 1e-9;
+    return { ang: horiz ? 90 : Math.atan2(Math.abs(ux), uy) / D2R, lean: horiz ? 'horizontal' : ux > 0 ? 'right' : 'left', ux, uy };
+  };
+  const twoP = -phi, thP = twoP / 2;
+  const span = Math.max(...r, C + R) - Math.min(...r, C - R);
+  const scale = niceStep(Math.max(span, 2 * R, 1e-9) / 14);
+  return { isStrain: true, mc: true, kind, deg, r, v, others, C, c: C, R, phi, G, O, P, arm, twoP, thP,
+           p1: C + R, p2: C - R, scale };
+}
+
+function buildMcSteps(m) {
+  const u = 'µε', f = x => fmt(x, 1), Rk = ROS[m.kind], v = m.v, [a, b] = m.others;
+  const g = i => `gauge ${i + 1}`, e = i => sub('ε', i + 1);
+  const tolV = x => Math.max(0.02 * Math.abs(x), 0.02 * Math.max(m.R, 1e-9), 0.06);
+  const val = (k, q, x, hint, unit = u) => ({ k, type: 'val', q, v: x, tol: unit === 'cm' ? Math.max(0.02 * Math.abs(x), 0.1) : tolV(x), hint, unit });
+  const ang = (k, q, x, hint) => ({ k, type: 'val', q, v: x, tol: 1, hint, unit: '°' });
+  const ch = (k, q, opts, x, hint) => ({ k, type: 'choice', q, opts, v: x, hint });
+  const read = m.r.map((x, i) => `${e(i)} = <b>${f(x)}</b>`).join(', ');
+  const armTxt = i => { const A = m.arm(i); return A.lean === 'horizontal' ? 'horizontal (90° to the vertical)' : `${fa(A.ang)}° from the vertical, leaning to the <b>${A.lean}</b> as it goes up`; };
+  const hgt = i => m.P[i][1] - m.O[1];
+  const hw = i => {
+    const A = m.arm(i), dx = m.r[i] - m.r[v], h = hgt(i);
+    return A.lean === 'horizontal'
+      ? `${g(i)}: the line is horizontal, so pt ${i + 1} is level with O (height 0).`
+      : `${g(i)}: horizontal distance = ${e(i)} − ${e(v)} = ${f(m.r[i])} − (${f(m.r[v])}) = ${f(dx)}; line at ${fa(A.ang)}° from vertical
+         ⇒ height = ${f(Math.abs(dx))} / tan ${fa(A.ang)}° = ${f(Math.abs(h))} → pt ${i + 1} is ${f(Math.abs(h))} ${u} ${h >= 0 ? 'above' : 'below'} O
+         (height = <b>${f(h)}</b>).`;
+  };
+  const cForm = m.kind === 'rect' ? `C = (${e(0)} + ${e(2)}) / 2 = (${f(m.r[0])} + (${f(m.r[2])})) / 2`
+    : `C = (${e(0)} + ${e(1)} + ${e(2)}) / 3 = (${f(m.r[0])} + (${f(m.r[1])}) + (${f(m.r[2])})) / 3`;
+  const rForm = m.kind === 'rect'
+    ? `R = √[ (${e(0)} − ${e(1)})² + (${e(1)} − ${e(2)})² ] / √2 = √[ (${f(m.r[0] - m.r[1])})² + (${f(m.r[1] - m.r[2])})² ] / √2`
+    : `R = (√2 / 3) √[ (${e(0)} − ${e(1)})² + (${e(1)} − ${e(2)})² + (${e(2)} − ${e(0)})² ]`;
+  const rSym = m.kind === 'rect' ? `R = √[ (${e(0)} − ${e(1)})² + (${e(1)} − ${e(2)})² ] / √2`
+    : `R = (√2 / 3) √[ (${e(0)} − ${e(1)})² + (${e(1)} − ${e(2)})² + (${e(2)} − ${e(0)})² ]`;
+  const tip = {
+    rect: 'Rectangular rosette: gauges at 0°, 45° and 90°. Gauges 1 and 3 are at 90°, so their points end up at opposite ends of a diameter.',
+    delta: 'Delta rosette: three gauges forming an equilateral triangle, 60° apart. Their points end up 120° apart on the circle.',
+    star: 'Star rosette: three arms 120° apart. As lines, 120° apart is the same as 60° apart, so a star behaves exactly like a delta rosette.'
+  }[m.kind];
+  const t1 = m.twoP, dir = Math.abs(t1) < 1e-9 ? 'none' : t1 > 0 ? 'counter-clockwise' : 'clockwise';
+  const pt1Note = v === 0 ? ' (gauge 1 is the pole gauge, so use the <b>true</b> pt 1: the second crossing of the vertical through O, not O itself)' : '';
+  const S_ = [];
+
+  S_.push({ key: 'ros', short: 'Rosette', level: 1, note: 'Nothing drawn yet. Study the rosette sketch on the right.',
+    title: 'Know your rosette',
+    body: `<p>You have a <b>${Rk.name}</b> rosette with gauges at ${m.deg.map((d, i) => `${d}°`).join(', ')}
+        (gauge 1, 2, 3, measured counter-clockwise from gauge 1).</p>
+      <p>Readings: ${read} ${u}.</p>
+      <p><b>McClintock's method</b> draws Mohr's strain circle directly from the three readings.
+        You do <b>not</b> need to work out ε<sub>x</sub>, ε<sub>y</sub> or γ<sub>xy</sub> first.</p>
+      <p>The idea: draw one gauge, here <b>${g(v)}</b>, along the vertical. The other gauges keep their true
+        angles relative to it. (You can change this with <i>Gauge drawn vertical</i> above. Any choice gives the same circle.)</p>
+      <div class="tip">${tip}</div>`,
+    checks: [
+      ch('step', 'The angle between neighbouring gauges is…', ['45°', '60°', '120°'], `${Rk.step}°`, 'Look at the rosette sketch and the gauge angles.'),
+      ch('big', 'Which gauge has the largest (most tensile) reading?', ['gauge 1', 'gauge 2', 'gauge 3'], g(m.r.indexOf(Math.max(...m.r))), 'Compare ε1, ε2 and ε3.')
+    ],
+    work: `<p>${Rk.name}: neighbouring gauges ${Rk.step}° apart. Largest reading: ${g(m.r.indexOf(Math.max(...m.r)))} (${f(Math.max(...m.r))} ${u}).</p>`
+  });
+
+  const lo = Math.min(...m.r), hi = Math.max(...m.r);
+  S_.push({ key: 'lines', short: 'Vertical lines', level: 2, note: 'New: the ε scale and a vertical line through each gauge reading.',
+    title: 'Draw the ε scale and three vertical lines',
+    body: `<ol>
+        <li>Near the bottom of your paper draw a horizontal <b>ε scale</b> (extension positive to the right).
+          A good scale is <b>1 cm = ${fmt(m.scale, 3)} ${u}</b>.</li>
+        <li>Draw a <b>vertical line</b> through each reading: ${e(0)}, ${e(1)} and ${e(2)}. Label them gauge 1, 2, 3.</li>
+      </ol>
+      <p>Each gauge's point on Mohr's circle lies somewhere on its own vertical line (its ε is known).
+        The heights (γ/2) are unknown. Finding them is what the construction does.</p>
+      <div class="tip">Use the same scale vertically later, so that the circle is a true circle.</div>`,
+    checks: [
+      val('wid', 'Distance between the two outermost vertical lines on your paper =', (hi - lo) / m.scale, `(largest − smallest reading) ÷ scale = (${f(hi)} − (${f(lo)})) ÷ ${fmt(m.scale, 3)}.`, 'cm')
+    ],
+    work: `<div class="f">(${f(hi)} − (${f(lo)})) / ${fmt(m.scale, 3)} = <b>${fmt((hi - lo) / m.scale, 2)}</b> cm</div>`
+  });
+
+  S_.push({ key: 'pole', short: 'Pole O', level: 3, el: 'arms', note: `New: the pole O on the gauge ${v + 1} line, with the gauge directions through it.`,
+    title: 'Pick the pole O and lay the rosette on it',
+    body: `<ol>
+        <li>Choose <b>any point O</b> on the vertical line of <b>${g(v)}</b>. The height does not matter: a different height just slides the whole construction up or down.</li>
+        <li>At O, draw the direction of every gauge as in the rosette, turned so that ${g(v)} lies along that vertical line:</li>
+      </ol>
+      <ul>
+        <li>${g(v)}: along the vertical line itself.</li>
+        <li>${g(a)}: ${armTxt(a)}.</li>
+        <li>${g(b)}: ${armTxt(b)}.</li>
+      </ul>
+      <p class="hint">A gauge is a line, so only the angle between the lines matters (0°–90°).
+        E.g. 120° between two gauges is the same line angle as 60°.</p>`,
+    checks: [
+      ang('a1', `Angle between the ${g(a)} line and the vertical =`, m.arm(a).ang, `The gauges are ${Math.abs(m.deg[a] - m.deg[v])}° apart; if that is more than 90°, use 180° minus it.`),
+      ang('a2', `Angle between the ${g(b)} line and the vertical =`, m.arm(b).ang, `The gauges are ${Math.abs(m.deg[b] - m.deg[v])}° apart; if that is more than 90°, use 180° minus it.`)
+    ],
+    work: `<p>${g(a)} is ${Math.abs(m.deg[a] - m.deg[v])}° from ${g(v)} → line at <b>${fa(m.arm(a).ang)}°</b> to the vertical, leaning ${m.arm(a).lean}.<br>
+      ${g(b)} is ${Math.abs(m.deg[b] - m.deg[v])}° from ${g(v)} → line at <b>${fa(m.arm(b).ang)}°</b> to the vertical, leaning ${m.arm(b).lean}.</p>`
+  });
+
+  S_.push({ key: 'pts', short: 'Points', level: 4, el: 'arms', note: `New: gauge lines extended to their own verticals, giving pt ${a + 1} and pt ${b + 1}.`,
+    title: 'Extend the gauge lines to find the points',
+    body: `<ol>
+        <li>Extend the ${g(a)} line through O until it meets the <b>vertical line of ${g(a)}</b>. Mark <b>pt ${a + 1}</b>.</li>
+        <li>Extend the ${g(b)} line through O until it meets the <b>vertical line of ${g(b)}</b>. Mark <b>pt ${b + 1}</b>.</li>
+        <li>Gauge ${v + 1} runs along its own vertical, so for now O stands in for gauge ${v + 1}.</li>
+      </ol>
+      <p>O, pt ${a + 1} and pt ${b + 1} all lie on Mohr's circle.</p>
+      <div class="f">height of pt above O = (horizontal distance) / tan(angle of line from vertical)</div>`,
+    checks: [
+      val('h1', `Height of pt ${a + 1} above O (negative if below) =`, hgt(a), 'Use the horizontal distance between the two vertical lines and the line angle. Check on the diagram whether the point is above or below O.'),
+      val('h2', `Height of pt ${b + 1} above O (negative if below) =`, hgt(b), 'Use the horizontal distance between the two vertical lines and the line angle. Check on the diagram whether the point is above or below O.')
+    ],
+    work: `<p>${hw(a)}</p><p>${hw(b)}</p>`
+  });
+
+  S_.push({ key: 'centre', short: 'Centre', level: 5, note: 'New: two chords and their perpendicular bisectors meeting at the centre.',
+    title: 'Find the centre with perpendicular bisectors',
+    body: `<ol>
+        <li>Join O to pt ${a + 1} and O to pt ${b + 1}. These are two <b>chords</b> of the circle.</li>
+        <li>Draw the <b>perpendicular bisector</b> of each chord: find its mid-point and draw a line at 90° to it.</li>
+        <li>The two bisectors cross at the <b>centre C</b> of Mohr's circle. Read its ε value off the scale.</li>
+      </ol>
+      <p class="hint">Check with a formula: ${m.kind === 'rect' ? 'C = (ε<sub>1</sub> + ε<sub>3</sub>) / 2 for a rectangular rosette' : 'C = (ε<sub>1</sub> + ε<sub>2</sub> + ε<sub>3</sub>) / 3 for a delta or star rosette'}.</p>`,
+    checks: [val('C', 'ε at the centre C =', m.C, 'Read the centre from the scale, or use the check formula below the steps.')],
+    work: `<div class="f">${cForm} = <b>${f(m.C)}</b> ${u}</div>`
+  });
+
+  S_.push({ key: 'circle', short: 'Circle', level: 6, note: `New: the circle, the true ε axis through C, and the true point for gauge ${v + 1}.`,
+    title: 'Draw the circle and the true ε axis',
+    body: `<ol>
+        <li>With the compass on C, draw the circle through O, pt ${a + 1} and pt ${b + 1}. Its radius is <b>R</b>.</li>
+        <li>Draw the horizontal line through C: this is the <b>true ε axis</b> (γ/2 = 0). It is <b>not</b> your bottom scale line.
+          Positive γ/2 (clockwise) is upward from it.</li>
+        <li>The vertical line through O meets the circle a <b>second time</b>. That point is the true <b>pt ${v + 1}</b> for ${g(v)}.
+          O itself is called the <b>pole</b>.</li>
+      </ol>
+      <p class="hint">Check with a formula: ${rSym}.</p>`,
+    checks: [
+      val('R', 'Radius R =', m.R, 'Measure from C to any of the points and multiply by the scale.'),
+      ch('pv', `The true point for ${g(v)} is…`, ['O itself', 'the second crossing of the vertical through O'], 'the second crossing of the vertical through O',
+        'O is the pole. The gauge point is on the same vertical line, on the other side of the ε axis.')
+    ],
+    work: `<div class="f">${rForm} = <b>${f(m.R)}</b> ${u}</div>
+      <p>True pt ${v + 1} = (${f(m.G[v][0])}, ${f(m.G[v][1])}); the pole O is its mirror image (${f(m.O[0])}, ${f(m.O[1])}) about the ε axis.</p>`
+  });
+
+  S_.push({ key: 'principal', short: 'Principal', level: 7, note: 'New: principal strains εp and εq on the ε axis.',
+    title: 'Read the principal strains',
+    body: `<p>The circle cuts the true ε axis at two points where γ/2 = 0. These are the <b>principal strains</b>:</p>
+      <div class="f">ε<sub>p</sub> = C + R (maximum) &nbsp;&nbsp;&nbsp; ε<sub>q</sub> = C − R (minimum)</div>
+      <p class="hint">We call them ε<sub>p</sub> and ε<sub>q</sub> so they are not mixed up with the gauge readings ε<sub>1</sub>, ε<sub>2</sub>, ε<sub>3</sub>.</p>`,
+    checks: [val('p1', 'Maximum principal strain εp =', m.p1, 'Right-hand end of the circle: C + R.'),
+             val('p2', 'Minimum principal strain εq =', m.p2, 'Left-hand end of the circle: C − R.')],
+    work: `<div class="f">ε<sub>p</sub> = ${f(m.C)} + ${f(m.R)} = <b>${f(m.p1)}</b> ${u}<br>ε<sub>q</sub> = ${f(m.C)} − ${f(m.R)} = <b>${f(m.p2)}</b> ${u}</div>`
+  });
+
+  S_.push({ key: 'shear', short: 'Max shear', level: 8, note: 'New: ±γmax/2 at the top and bottom of the circle.',
+    title: 'Read the maximum shear strain',
+    body: `<p>The top and bottom of the circle give the maximum shear. The vertical axis is <b>γ/2</b>, so:</p>
+      <div class="f">γ<sub>max</sub>/2 = R &nbsp;⇒&nbsp; γ<sub>max</sub> = 2R</div>
+      <div class="tip">A very common mistake: forgetting to <b>double</b> R.</div>
+      <p>On the maximum-shear directions the normal strain equals C.</p>`,
+    checks: [val('gmax', 'Maximum in-plane shear strain γmax =', 2 * m.R, 'γmax = 2R.'),
+             val('nC', 'Normal strain on the max-shear directions =', m.C, 'The top and bottom points sit directly above/below C.')],
+    work: `<div class="f">γ<sub>max</sub> = 2 × ${f(m.R)} = <b>${f(2 * m.R)}</b> ${u} &nbsp;&nbsp; ε there = C = <b>${f(m.C)}</b> ${u}</div>`
+  });
+
+  S_.push({ key: 'angle', short: 'Principal angle', level: 9, el: 'p', note: 'New: the angle 2θp from pt 1 to εp.',
+    title: 'Find the principal direction θ<sub>p</sub>',
+    body: `<ol>
+        <li>Join C to <b>pt 1</b>${pt1Note}.</li>
+        <li>Measure the angle on the circle from C–pt 1 to C–ε<sub>p</sub>. This is <b>2θ<sub>p</sub></b>. Note which way you turn.</li>
+        <li>On the rosette, turn from <b>gauge 1</b> by <b>θ<sub>p</sub></b> (half the angle) in the <b>same direction</b>.
+          That is the direction of ε<sub>p</sub>. ε<sub>q</sub> is at 90° to it.</li>
+      </ol>
+      <div class="tip">Halve the angle! Angles on Mohr's circle are twice the real angles.</div>`,
+    checks: [
+      ang('thp', 'Size of θp from gauge 1 (degrees) =', Math.abs(m.thP), 'Measure 2θp on the circle from C–pt 1 to C–εp, then halve it.'),
+      dir !== 'none' && ch('thdir', 'From gauge 1, the εp direction is turned…', ['clockwise', 'counter-clockwise'], dir, 'Look at the green arc on the circle from pt 1 to εp.')
+    ],
+    work: dir === 'none'
+      ? `<p>pt 1 is already at ε<sub>p</sub>: gauge 1 is a principal direction (θ<sub>p</sub> = 0°).</p>`
+      : `<div class="f">pt 1 = (${f(m.G[0][0])}, ${f(m.G[0][1])}); angle of C–pt 1 from the +ε axis = ${fa(m.phi)}°<br>
+        2θ<sub>p</sub> = ${fa(Math.abs(m.twoP))}° ${dir} ⇒ θ<sub>p</sub> = <b>${fa(Math.abs(m.thP))}°</b> ${dir} from gauge 1</div>`
+  });
+
+  const rows = [['Rosette', `${Rk.name} (${m.deg.join('°/')}°)`], ['Readings ε<sub>1</sub>, ε<sub>2</sub>, ε<sub>3</sub>', m.r.map(f).join(', ')],
+    ['Gauge drawn vertical (pole)', `gauge ${v + 1}`], ['Centre C', f(m.C)], ['Radius R', f(m.R)],
+    ['ε<sub>p</sub> (max principal)', f(m.p1)], ['ε<sub>q</sub> (min principal)', f(m.p2)], ['γ<sub>max</sub> = 2R', f(2 * m.R)],
+    ['θ<sub>p</sub> from gauge 1', `${fa(Math.abs(m.thP))}° ${m.thP >= 0 ? 'ccw' : 'cw'}`],
+    ...m.G.map((q, i) => [`pt ${i + 1}: (ε, γ/2)`, `(${f(q[0])}, ${f(q[1])})`])];
+  S_.push({ key: 'summary', short: 'Summary', level: 10, el: 'p', note: 'The complete McClintock construction.',
+    title: 'Summary & self-review',
+    body: `<p>Compare with your drawing (strains in ${u}):</p>
+      <table>${rows.map(([p, q]) => `<tr><td>${p}</td><td>${q}</td></tr>`).join('')}</table>
+      <h3>McClintock's method: recap</h3>
+      <ol>
+        <li>Vertical lines through ε<sub>1</sub>, ε<sub>2</sub>, ε<sub>3</sub>.</li>
+        <li>Pole O on one gauge's line; draw the rosette directions through O with that gauge vertical.</li>
+        <li>Each other gauge line meets its own vertical line at a point on the circle.</li>
+        <li>Perpendicular bisectors of the chords → centre; draw the circle; the horizontal through the centre is the ε axis.</li>
+        <li>ε<sub>p</sub>, ε<sub>q</sub> = C ± R; γ<sub>max</sub> = 2R; 2θ<sub>p</sub> from pt 1, same direction on the rosette.</li>
+      </ol>
+      <p>Try another rosette in the <b>Given data</b> box, open the <a href="strain.html">strain tool</a>,
+        or switch to the <a href="#" id="otherMode">stress tutorial</a>.</p>`,
+    checks: [], work: ''
+  });
+  S_.forEach(s => { s.checks = (s.checks || []).filter(Boolean); });
+  return S_;
+}
+
+function drawMc(m, level) {
+  const svg = $('mohr'), W = 640, H = 500, mg = 40;
+  const pw = svg.getBoundingClientRect().width || 640;
+  FS = Math.max(1, Math.min(1.7, 560 / pw));
+  const grey = '#8a93a3', orange = '#e08a00', lc = '#b36b00', blue = '#1f6feb', green = '#1a8f5a', teal = '#0e8a9b', purple = '#8e44ad', ink = '#1d2330';
+  svg.setAttribute('viewBox', `0 0 ${W} ${level < 2 ? 200 : H}`);
+  if (level < 2) {
+    svg.innerHTML = text(W / 2, 90, 'The McClintock construction will appear here', { size: 16, fill: grey }) +
+      text(W / 2, 116, 'as you work through the steps.', { size: 14, fill: grey });
+    FS = 1; return;
+  }
+  const R = Math.max(m.R, 1e-9), C = m.C, nw = lv => lv === level ? 'class="newel"' : '';
+  const g = (lv, inner) => level >= lv ? `<g ${nw(lv)}>${inner}</g>` : '';
+  let xlo = Math.min(...m.r, C - R), xhi = Math.max(...m.r, C + R);
+  const px = 0.12 * (xhi - xlo || 1); xlo -= px; xhi += px;
+  const ylo = -1.55 * R, yhi = 1.3 * R, ybase = -1.35 * R;
+  const k = Math.min((W - 2 * mg) / (xhi - xlo), (H - 2 * mg) / (yhi - ylo));
+  const X = x => W / 2 + (x - (xlo + xhi) / 2) * k, Y = y => H / 2 - (y - (ylo + yhi) / 2) * k;
+  const step = m.scale, every = Math.max(1, Math.ceil(36 / (step * k)));
+  let o = '';
+  // grid + bottom ε scale
+  for (let x = Math.ceil(((xlo + xhi) / 2 - W / 2 / k) / step) * step; X(x) <= W; x += step) o += line(X(x), 0, X(x), H, '#eef0f4');
+  for (let y = Math.ceil(((ylo + yhi) / 2 - H / 2 / k) / step) * step; Y(y) >= 0; y += step) o += line(0, Y(y), W, Y(y), '#eef0f4');
+  let sc = arrow(6, Y(ybase), W - 6, Y(ybase), ink, 1.3) + text(W - 8, Y(ybase) - 12, 'ε scale (µε)', { size: 12, bold: true, anchor: 'end' });
+  for (let x = Math.ceil(((xlo + xhi) / 2 - W / 2 / k) / step) * step; X(x) <= W - 20; x += step)
+    if (Math.round(x / step) % every === 0) sc += line(X(x), Y(ybase) - 4, X(x), Y(ybase) + 4, ink, 1) + text(X(x), Y(ybase) + 14, fmt(x, 3), { size: 10, fill: grey });
+  let vl = '';
+  m.r.forEach((x, i) => {
+    vl += line(X(x), Y(yhi) + 20, X(x), Y(ybase), orange, 1.8, 'stroke-dasharray="6 4"');
+    vl += text(X(x), Y(yhi) + 8 + (i % 2) * 14 - (i === 2 ? 0 : 0), `ε${'₁₂₃'[i]} = ${fmt(x, 1)}`, { fill: lc, bold: true, size: 12 });
+  });
+  o += g(2, sc + vl);
+  // gauge directions through the pole
+  const O = m.O, Ox = X(O[0]), Oy = Y(O[1]);
+  let arms = '';
+  [0, 1, 2].forEach(i => {
+    const d = (m.deg[i] - m.deg[m.v]) * D2R, ux = -Math.sin(d), uy = Math.cos(d), L = 62;
+    arms += line(Ox - ux * L, Oy + uy * L, Ox + ux * L, Oy - uy * L, orange, 5, 'stroke-linecap="round" opacity=".55"');
+    const s = uy < -1e-9 ? -1 : 1;
+    arms += text(Ox + s * ux * (L + 12), Oy - s * uy * (L + 12), `${i + 1}`, { fill: lc, bold: true, size: 13 });
+  });
+  o += level > 4 ? `<g opacity=".3">${arms}</g>` : g(3, arms);
+  // extended lines to the other verticals
+  let ext = '';
+  m.others.forEach(i => {
+    const P = m.P[i], dx = X(P[0]) - Ox, dy = Y(P[1]) - Oy;
+    ext += line(Ox - dx * 0.12, Oy - dy * 0.12, X(P[0]) + dx * 0.12, Y(P[1]) + dy * 0.12, blue, 1.8);
+  });
+  o += level > 5 ? `<g opacity=".3">${ext}</g>` : g(4, ext);
+  // chords and perpendicular bisectors
+  let bis = '';
+  m.others.forEach(i => {
+    const A = O, B = m.P[i], dx = B[0] - A[0], dy = B[1] - A[1], L = Math.hypot(dx, dy);
+    if (L < 1e-9) return;
+    const M = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], n = [-dy / L, dx / L], big = 6 * R;
+    bis += line(X(A[0]), Y(A[1]), X(B[0]), Y(B[1]), '#5b6475', 1.3, 'stroke-dasharray="3 3"') +
+      line(X(M[0] - n[0] * big), Y(M[1] - n[1] * big), X(M[0] + n[0] * big), Y(M[1] + n[1] * big), purple, 1.5, 'stroke-dasharray="7 4"') +
+      `<circle cx="${X(M[0])}" cy="${Y(M[1])}" r="3" fill="${purple}"/>`;
+  });
+  bis += `<circle cx="${X(C)}" cy="${Y(0)}" r="5" fill="${purple}" stroke="#fff" stroke-width="1.5"/>` +
+    (level === 5 ? text(X(C) + 10, Y(0) + 18, `centre C = ${fmt(C, 1)}`, { fill: purple, bold: true, size: 12, anchor: 'start' }) : '');
+  o += level === 5 ? g(5, bis) : (level > 5 ? `<g opacity=".3">${bis}</g>` : '');
+  // circle + true axis + true pole-gauge point
+  const Gv = m.G[m.v];
+  o += g(6, `<circle cx="${X(C)}" cy="${Y(0)}" r="${R * k}" fill="${blue}" fill-opacity=".06" stroke="${ink}" stroke-width="2"/>` +
+    arrow(6, Y(0), W - 6, Y(0), ink, 1.5) + text(W - 8, Y(0) - 13, 'ε (true axis, γ/2 = 0)', { size: 12, bold: true, anchor: 'end' }) +
+    text(10, 16, 'γ/2 ↑ (clockwise +), measured from the true axis', { size: 11, fill: '#5b6475', anchor: 'start' }) +
+    `<circle cx="${X(C)}" cy="${Y(0)}" r="3.5" fill="${ink}"/>` + text(X(C) - 10, Y(0) + 14, 'C', { bold: true, size: 12 }) +
+    line(Ox, Oy, X(Gv[0]), Y(Gv[1]), blue, 1.2, 'stroke-dasharray="2 3"') +
+    line(X(C), Y(0), X(m.P[m.others[0]][0]), Y(m.P[m.others[0]][1]), ink, 1.4) +
+    text((X(C) + X(m.P[m.others[0]][0])) / 2 + 8, (Y(0) + Y(m.P[m.others[0]][1])) / 2 - 8, `R = ${fmt(m.R, 1)}`, { bold: true, size: 12, anchor: 'start' }));
+  // principal + max shear
+  o += g(7, [[m.p1, 'εp', 'start', 6], [m.p2, 'εq', 'end', -6]].map(([x, n, an, dx]) =>
+    `<circle cx="${X(x)}" cy="${Y(0)}" r="5.5" fill="${green}"/>` + text(X(x) + dx, Y(0) + 16, `${n} = ${fmt(x, 1)}`, { fill: green, bold: true, anchor: an })).join(''));
+  o += g(8, `<circle cx="${X(C)}" cy="${Y(R)}" r="5.5" fill="${teal}"/><circle cx="${X(C)}" cy="${Y(-R)}" r="5.5" fill="${teal}"/>` +
+    text(X(C) - 10, Y(R) - 12, `+γmax/2 = ${fmt(m.R, 1)}`, { fill: teal, bold: true, anchor: 'end' }) +
+    text(X(C) - 10, Y(-R) + 14, `−γmax/2 = ${fmt(-m.R, 1)}`, { fill: teal, bold: true, anchor: 'end' }));
+  // principal angle arc from pt 1
+  if (level >= 9 && Math.abs(m.twoP) > 1e-6) {
+    const cx = X(C), cy = Y(0), r = Math.max(R * k * 0.42, 26), A0 = m.phi * D2R, A1 = 0, dirn = Math.sign(A1 - A0);
+    const pp = t => `${cx + r * Math.cos(t)} ${cy - r * Math.sin(t)}`, am = (A0 + A1) / 2;
+    const ex = cx + r * Math.cos(A1), ey = cy - r * Math.sin(A1), tx = -Math.sin(A1) * dirn, ty = -Math.cos(A1) * dirn;
+    const ly = Math.abs(Math.sin(am)) < 0.3 ? (Math.sin(am) >= 0 ? -14 : 14) : 0;
+    o += g(9, line(cx, cy, X(m.G[0][0]), Y(m.G[0][1]), orange, 2.6) + line(cx, cy, X(m.p1), cy, green, 2.6) +
+      `<path d="M ${pp(A0)} A ${r} ${r} 0 ${Math.abs(A1 - A0) > Math.PI ? 1 : 0} ${dirn > 0 ? 0 : 1} ${pp(A1)}" fill="none" stroke="${green}" stroke-width="2"/>` +
+      arrow(ex - tx * 9, ey - ty * 9, ex, ey, green, 2, 9, 4.5) +
+      text(cx + (r + 24) * Math.cos(am), cy - (r + 24) * Math.sin(am) + ly, `2θp = ${fa(Math.abs(m.twoP))}° ${m.twoP > 0 ? 'ccw' : 'cw'}`, { fill: green, bold: true }));
+  }
+  // points on top
+  const dot = (Q, col, fill, lab, lv) => {
+    const dx = Q[0] - C, dy = Q[1], L = Math.hypot(dx * k, dy * k) || 1;
+    const ox = level >= 6 ? dx * k / L * 26 : 14, oy2 = level >= 6 ? -dy * k / L * 18 : -12;
+    return g(lv, `<circle cx="${X(Q[0])}" cy="${Y(Q[1])}" r="6" fill="${fill}" stroke="${col}" stroke-width="2"/>` +
+      text(X(Q[0]) + ox, Y(Q[1]) + oy2, lab, { fill: col, bold: true, size: 12, anchor: level >= 6 ? 'middle' : 'start' }));
+  };
+  m.others.forEach(i => { o += dot(m.P[i], blue, blue, `pt ${i + 1}`, 4); });
+  if (level >= 6) o += dot(Gv, lc, '#fff', `pt ${m.v + 1}`, 6);
+  o += dot(O, blue, '#fff', level >= 6 ? 'O (pole)' : 'O', 3);
+  svg.innerHTML = o; FS = 1;
+}
+
+function drawRosettePanel(m, st) {
+  const W = 340, c = W / 2, L = 112, lc = '#b36b00', orange = '#e08a00', green = '#1a8f5a', grey = '#8a93a3';
+  const aDeg = i => 90 + m.deg[i] - m.deg[m.v];               // drawing angle of gauge i (ccw from horizontal)
+  const U = a => [Math.cos(a * D2R), -Math.sin(a * D2R)];
+  let o = line(c, 24, c, W - 24, grey, 1, 'stroke-dasharray="3 4"') + text(c + 6, 20, 'vertical', { size: 10, fill: grey, anchor: 'start' });
+  const gauge = (x1, y1, x2, y2, i) => line(x1, y1, x2, y2, orange, i === m.v ? 9 : 7, 'stroke-linecap="round" opacity=".75"');
+  if (m.kind === 'delta') {
+    const rho = 100, g0 = aDeg(0) - 30;
+    for (let k = 0; k < 3; k++) {
+      const a1 = g0 + k * 120, a2 = a1 + 120, p1 = U(a1), p2 = U(a2), sd = (((a1 + 150) % 180) + 180) % 180;
+      const i = [0, 1, 2].find(j => Math.abs((((aDeg(j) - sd) % 180) + 180) % 180) < 1e-6 || Math.abs((((aDeg(j) - sd) % 180) + 180) % 180 - 180) < 1e-6);
+      const x1 = c + rho * p1[0], y1 = c + rho * p1[1], x2 = c + rho * p2[0], y2 = c + rho * p2[1];
+      o += gauge(x1, y1, x2, y2, i);
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, ox = (mx - c) * 0.35, oy = (my - c) * 0.35;
+      o += text(mx + ox, my + oy, `${i + 1}`, { fill: lc, bold: true, size: 15 }) +
+        text(mx + ox, my + oy + 15, `(${fmt(m.r[i], 1)})`, { fill: lc, size: 10.5 });
+    }
+  } else {
+    [0, 1, 2].forEach(i => {
+      const p = U(aDeg(i)), x2 = c + p[0] * L, y2 = c + p[1] * L;
+      o += gauge(c + p[0] * 14, c + p[1] * 14, x2, y2, i);
+      o += text(c + p[0] * (L + 16), c + p[1] * (L + 16), `${i + 1}`, { fill: lc, bold: true, size: 15 }) +
+        text(c + p[0] * (L + 16), c + p[1] * (L + 16) + 15, `(${fmt(m.r[i], 1)})`, { fill: lc, size: 10.5 });
+    });
+    o += `<circle cx="${c}" cy="${c}" r="4" fill="${lc}"/>`;
+  }
+  let note = `Numbers in brackets are the readings (µε). ${ROS[m.kind].name} rosette, gauges at ${m.deg.join('°, ')}° (ccw from gauge 1), turned so gauge ${m.v + 1} is vertical as in the construction.`;
+  if (st.el === 'p' && m.R > 1e-9) {
+    const ap = aDeg(0) + m.thP, p = U(ap), q = U(ap + 90), r0 = U(aDeg(0)), LL = 140;
+    o += line(c - r0[0] * LL, c - r0[1] * LL, c + r0[0] * LL, c + r0[1] * LL, lc, 1, 'stroke-dasharray="2 3"');
+    o += arrow(c - p[0] * LL, c - p[1] * LL, c + p[0] * LL, c + p[1] * LL, green, 2.4) + arrow(c + p[0] * LL, c + p[1] * LL, c - p[0] * LL, c - p[1] * LL, green, 2.4);
+    o += text(c + p[0] * (LL + 4) + (p[0] >= 0 ? -6 : 6), c + p[1] * (LL + 4) - 10, 'εp', { fill: green, bold: true, size: 14 });
+    o += line(c - q[0] * 110, c - q[1] * 110, c + q[0] * 110, c + q[1] * 110, green, 1.6, 'stroke-dasharray="6 4"') +
+      text(c + q[0] * 122, c + q[1] * 122, 'εq', { fill: green, bold: true, size: 13 });
+    if (Math.abs(m.thP) > 0.05) {
+      const rr = 72, A0 = aDeg(0) * D2R, A1 = ap * D2R, pp = t => `${c + rr * Math.cos(t)} ${c - rr * Math.sin(t)}`, am = (A0 + A1) / 2;
+      o += `<path d="M ${pp(A0)} A ${rr} ${rr} 0 0 ${A1 > A0 ? 0 : 1} ${pp(A1)}" fill="none" stroke="${green}" stroke-width="1.8"/>` +
+        text(c + (rr + 16) * Math.cos(am), c - (rr + 16) * Math.sin(am), `θp ${fa(Math.abs(m.thP))}°`, { fill: green, bold: true, size: 11 });
+    }
+    note = `Green: principal directions. εp is ${fa(Math.abs(m.thP))}° ${sgnWord(m.thP)} from gauge 1 (dotted line); εq is at 90° to it.`;
+  }
+  $('elTitle').textContent = `${ROS[m.kind].name} rosette (gauge ${m.v + 1} vertical)`;
+  $('element').innerHTML = `<svg viewBox="0 0 ${W} ${W}">${o}</svg>`;
+  $('elNote').textContent = note;
+}
+
 /* ================= data card ================= */
 function renderData() {
   const M = MODES[S.mode], I = S.inp, u = M.u;
@@ -788,19 +1123,12 @@ function renderData() {
       <label>τ<sub>xy</sub> (${u}, cw +)<input type="number" step="any" data-k="s" value="${I.s}"></label></div>
       <p class="hint">τ<sub>xy</sub> is the shear on the vertical faces: <b>+</b> if clockwise, <b>−</b> if anticlockwise.</p>`;
   } else {
-    fields = `<div class="seg"><button type="button" data-src="direct" class="${I.src !== 'rosette' ? 'on' : ''}">ε<sub>x</sub>, ε<sub>y</sub>, γ<sub>xy</sub></button>
-      <button type="button" data-src="rosette" class="${I.src === 'rosette' ? 'on' : ''}">0°/45°/90° rosette</button></div>` +
-      (I.src === 'rosette'
-        ? `<div class="row">
-          <label>ε<sub>a</sub> at 0° (${u})<input type="number" step="any" data-k="ra" value="${I.ra}"></label>
-          <label>ε<sub>b</sub> at 45° (${u})<input type="number" step="any" data-k="rb" value="${I.rb}"></label>
-          <label>ε<sub>c</sub> at 90° (${u})<input type="number" step="any" data-k="rc" value="${I.rc}"></label></div>
-          <p class="hint">Gauge b is 45° counter-clockwise from gauge a (the x axis).</p>`
-        : `<div class="row">
-          <label>ε<sub>x</sub> (${u})<input type="number" step="any" data-k="x" value="${I.x}"></label>
-          <label>ε<sub>y</sub> (${u})<input type="number" step="any" data-k="y" value="${I.y}"></label>
-          <label>γ<sub>xy</sub> (${u}, cw +)<input type="number" step="any" data-k="s" value="${I.s}"></label></div>
-          <p class="hint">γ<sub>xy</sub> positive = clockwise (same sense as positive τ<sub>xy</sub>).</p>`);
+    fields = `<div class="seg">${Object.entries(ROS).map(([k, r]) =>
+        `<button type="button" data-kind="${k}" class="${I.kind === k ? 'on' : ''}">${r.name} ${r.deg.join('/')}°</button>`).join('')}</div>
+      <div class="row2" style="margin-bottom:8px"><label>Gauge drawn vertical (pole O)
+        <select data-k="pole">${[0, 1, 2].map(i => `<option value="${i}" ${+I.pole === i ? 'selected' : ''}>Gauge ${i + 1}</option>`).join('')}</select></label></div>
+      <div class="row">${[1, 2, 3].map(i => `<label>ε<sub>${i}</sub> (${u})<input type="number" step="any" data-k="g${i}" value="${I['g' + i]}"></label>`).join('')}</div>
+      <p class="hint">Gauge angles are measured counter-clockwise from gauge 1. Readings in µε (10<sup>−6</sup>).</p>`;
   }
   $('dataCard').innerHTML = `<h2>Given data</h2><div class="exs">${exs}</div>${fields}`;
   $('dataCard').querySelectorAll('[data-ex]').forEach(b => b.onclick = () => {
@@ -808,11 +1136,15 @@ function renderData() {
     if (i >= 0) loadExample(M.examples[i]);
     resetAnswers(); renderData(); render();
   });
-  $('dataCard').querySelectorAll('[data-src]').forEach(b => b.onclick = () => {
-    S.inp.src = b.dataset.src; S.ex = -1;
-    if (S.inp.src === 'rosette' && S.inp.ra === undefined) Object.assign(S.inp, { ra: 500, rb: 300, rc: -100 });
+  $('dataCard').querySelectorAll('[data-kind]').forEach(b => b.onclick = () => {
+    S.inp.kind = b.dataset.kind; S.inp.pole = ROS[S.inp.kind].pole; S.ex = -1;
     resetAnswers(); renderData(); render();
   });
+  $('dataCard').querySelectorAll('select[data-k]').forEach(sel => sel.addEventListener('change', () => {
+    S.inp[sel.dataset.k] = sel.value; S.ex = -1;
+    $('dataCard').querySelectorAll('[data-ex]').forEach(b => b.classList.toggle('on', b.dataset.ex === '-1'));
+    resetAnswers(); render();
+  }));
   $('dataCard').querySelectorAll('input[data-k]').forEach(inp => inp.addEventListener('input', () => {
     S.inp[inp.dataset.k] = inp.value; S.ex = -1;
     $('dataCard').querySelectorAll('[data-ex]').forEach(b => b.classList.toggle('on', b.dataset.ex === '-1'));
@@ -820,9 +1152,9 @@ function renderData() {
   }));
 }
 function loadExample(e) {
-  const base = S.mode === 'strain' ? { src: 'direct', x: 0, y: 0, s: 0, ra: 0, rb: 0, rc: 0 } : { x: 0, y: 0, s: 0 };
+  const base = S.mode === 'strain' ? { kind: 'rect', g1: 0, g2: 0, g3: 0, pole: 1 } : { x: 0, y: 0, s: 0 };
   S.inp = Object.assign(base, e);
-  if (e.src === 'rosette') { S.inp.x = e.ra; S.inp.y = e.rc; S.inp.s = e.ra + e.rc - 2 * e.rb; }
+  delete S.inp.label;
 }
 function resetAnswers() { S.ans = {}; S.work = {}; }
 
@@ -886,14 +1218,15 @@ function render() {
   if ($('otherMode')) $('otherMode').onclick = e => { e.preventDefault(); start(S.mode === 'stress' ? 'strain' : 'stress'); };
 
   // diagram
-  $('circleTitle').textContent = `Mohr's circle — step ${S.step + 1}`;
-  $('newNote').textContent = NEW_NOTE[st.level];
-  $('scaleNote').innerHTML = st.level >= 3
+  $('circleTitle').textContent = `${m.mc ? 'McClintock construction' : "Mohr's circle"} — step ${S.step + 1}`;
+  $('newNote').textContent = st.note || NEW_NOTE[st.level];
+  $('scaleNote').innerHTML = m.mc ? (st.level >= 2 ? `Grid: 1 square = <b>${fmt(m.scale, 3)} µε</b> (suggested 1 cm on paper), same scale both ways.` : '')
+    : st.level >= 3
     ? `Grid: 1 square = <b>${fmt(m.scale, 3)} ${MODES[S.mode].u}</b> (suggested 1 cm on paper). ` +
       (m.isStrain ? 'Vertical axis is <b>γ/2</b>.' : 'Shear plotted upward is clockwise.')
     : '';
-  drawMohr(m, st.level);
-  drawElement(m, st);
+  if (m.mc) { drawMc(m, st.level); drawRosettePanel(m, st); }
+  else { drawMohr(m, st.level); drawElement(m, st); }
 }
 
 function checkAnswer(st, k) {
@@ -942,7 +1275,8 @@ document.addEventListener('keydown', e => {
 let lastW = window.innerWidth;   // redraw only on width change (mobile keyboards fire height-only resizes)
 window.addEventListener('resize', () => {
   if (window.innerWidth === lastW) return; lastW = window.innerWidth;
-  if (S.mode) drawMohr(model(), STEPS[S.step].level);
+  if (!S.mode) return;
+  const m = model(); (m.mc ? drawMc : drawMohr)(m, STEPS[S.step].level);
 });
 if (location.hash === '#stress' || location.hash === '#strain') start(location.hash.slice(1));
 </script>
