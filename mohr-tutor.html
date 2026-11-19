@@ -174,13 +174,13 @@
       <section class="card step" id="stepCard"></section>
     </div>
     <div class="stack">
-      <section class="card">
+      <section class="card" id="circleCard">
         <h2 id="circleTitle">Mohr's circle</h2>
         <div class="new-note" id="newNote"></div>
         <svg id="mohr" viewBox="0 0 640 500" role="img" aria-label="Mohr's circle being built step by step"></svg>
         <p class="caption" id="scaleNote"></p>
       </section>
-      <section class="card">
+      <section class="card" id="elCard">
         <h2 id="elTitle">Element</h2>
         <div class="element" id="element"></div>
         <p class="caption" id="elNote"></p>
@@ -1321,6 +1321,8 @@ function start(mode) {
   $('modeBadge').textContent = MODES[mode].title;
   $('switchMode').textContent = `Switch to ${mode === 'stress' ? 'strain' : 'stress'}`;
   try { history.replaceState(null, '', '#' + mode); } catch (e) {}
+  // stress: element sits above the given data; strain: rosette sketch stays under the construction
+  if (mode === 'stress') $('dataCard').before($('elCard')); else $('circleCard').after($('elCard'));
   renderData(); render(); window.scrollTo(0, 0);
 }
 function home() {
