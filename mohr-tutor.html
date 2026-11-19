@@ -174,13 +174,13 @@
       <section class="card step" id="stepCard"></section>
     </div>
     <div class="stack">
-      <section class="card">
+      <section class="card" id="circleCard">
         <h2 id="circleTitle">Mohr's circle</h2>
         <div class="new-note" id="newNote"></div>
         <svg id="mohr" viewBox="0 0 640 500" role="img" aria-label="Mohr's circle being built step by step"></svg>
         <p class="caption" id="scaleNote"></p>
       </section>
-      <section class="card">
+      <section class="card" id="elCard">
         <h2 id="elTitle">Element</h2>
         <div class="element" id="element"></div>
         <p class="caption" id="elNote"></p>
@@ -1110,10 +1110,11 @@ function drawRosettePanel(m, st) {
 
   if (delta) {
     // left: as installed (triangle); right: gauges slid parallel to themselves into one point
-    const narrow = ($('element').parentElement.getBoundingClientRect().width || 600) < 480;
+    const narrow = ($('element').parentElement.getBoundingClientRect().width || 600) < 400;
     let cl, cr, lyc, cy;
     if (narrow) { W = 340; H = 640; cl = cr = 170; lyc = 150; cy = 470; }
-    else { W = 600; H = 330; cl = 130; cr = 440; lyc = cy = 170; }
+    else { W = 600; H = 330; cl = 130; cr = 440; lyc = cy = 170;
+      FS = Math.max(1, Math.min(1.45, 560 / ($('element').parentElement.getBoundingClientRect().width || 600))); }
     const rho = 92, top = narrow ? 330 : 18;
     o += text(cl, 18, 'As installed (triangle)', { bold: true, size: 13 }) + text(cr, top, 'Rearranged through one point', { bold: true, size: 13 });
     const sl = triSides(cl, lyc, rho);
@@ -1169,6 +1170,7 @@ function drawRosettePanel(m, st) {
     }
   }
   $('elTitle').textContent = delta ? `Delta rosette: rearranging the gauges (gauge ${m.v + 1} vertical)` : `${ROS[m.kind].name} rosette (gauge ${m.v + 1} vertical)`;
+  FS = 1;
   $('element').innerHTML = `<svg viewBox="0 0 ${W} ${H}">${o}</svg>`;
   $('element').style.maxWidth = delta && W > 400 ? '600px' : '';
   $('elNote').textContent = note;
@@ -1321,6 +1323,8 @@ function start(mode) {
   $('modeBadge').textContent = MODES[mode].title;
   $('switchMode').textContent = `Switch to ${mode === 'stress' ? 'strain' : 'stress'}`;
   try { history.replaceState(null, '', '#' + mode); } catch (e) {}
+  // the element (stress) or rosette sketch (strain) sits above the given data
+  $('dataCard').before($('elCard'));
   renderData(); render(); window.scrollTo(0, 0);
 }
 function home() {
