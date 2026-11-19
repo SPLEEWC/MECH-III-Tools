@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mohr's Circle Tutor</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --ink: #1d2330; --mute: #5b6475; --line: #d9dde5; --soft: #eef2f8;
+    --blue: #1f6feb; --red: #d1344a; --green: #1a8f5a; --teal: #0e8a9b; --purple: #8e44ad;
+    --orange: #e08a00; --grid: #e9ecf1; --ok: #1a8f5a; --bad: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 18px 20px 6px; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 0 0 10px; }
+  h3 { font-size: .98rem; margin: 14px 0 6px; }
+  .sub { color: var(--mute); margin: 0; }
+  a { color: var(--blue); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 12px 20px 40px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .stack > * + * { margin-top: 16px; }
+  button { font: inherit; font-size: .9rem; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+           border: 1px solid var(--line); background: #fff; color: var(--ink); }
+  button:hover { border-color: var(--blue); }
+  button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  button.primary:hover { background: #1859c4; }
+  button:disabled { opacity: .45; cursor: default; }
+  input[type=number], select { padding: 6px 8px; font: inherit; border: 1px solid var(--line);
+         border-radius: 6px; background: #fff; color: var(--ink); }
+  input[type=number] { width: 100%; }
+  input[type=number]:focus, select:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
+  label { display: block; font-size: .85rem; color: var(--mute); }
+  .hint { font-size: .84rem; color: var(--mute); margin: 6px 0 0; }
+
+  /* ---------- home ---------- */
+  .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 8px; }
+  .choice { text-align: left; padding: 18px; border-radius: 12px; border: 2px solid var(--line); background: #fff;
+            display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: center; font-size: 1rem; }
+  .choice:hover, .choice:focus-visible { border-color: var(--blue); box-shadow: 0 4px 18px rgba(31,111,235,.12); outline: none; }
+  .choice b { display: block; font-size: 1.15rem; margin-bottom: 4px; }
+  .choice span { color: var(--mute); font-size: .9rem; }
+  .choice svg { width: 96px; height: 96px; }
+  .learn { columns: 2 260px; margin: 6px 0 0; padding-left: 1.2em; }
+  .learn li { margin: 2px 0; break-inside: avoid; }
+
+  /* ---------- lesson ---------- */
+  .topbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 12px; }
+  .badge { background: var(--ink); color: #fff; border-radius: 999px; padding: 3px 12px; font-size: .85rem; font-weight: 600; }
+  .grow { flex: 1; }
+  .stepper { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .stepper button { padding: 4px 10px; font-size: .8rem; border-radius: 999px; }
+  .stepper button.cur { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .stepper button.done:not(.cur) { border-color: var(--ok); color: var(--ok); }
+  .progress { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
+  .progress div { height: 100%; background: var(--blue); transition: width .25s; }
+  .lesson { display: grid; grid-template-columns: minmax(320px, 440px) 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .lesson { grid-template-columns: 1fr; } }
+  .data .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .data .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .exs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .exs button { font-size: .8rem; padding: 3px 9px; }
+  .exs button.on { border-color: var(--blue); color: var(--blue); font-weight: 600; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
+  .seg button { border: 0; border-radius: 0; font-size: .82rem; }
+  .seg button.on { background: var(--ink); color: #fff; }
+  .stepno { color: var(--blue); font-weight: 700; font-size: .85rem; letter-spacing: .04em; text-transform: uppercase; }
+  .step h2 { font-size: 1.25rem; margin: 2px 0 8px; }
+  .step ol, .step ul { padding-left: 1.3em; margin: 6px 0; }
+  .step li { margin: 4px 0; }
+  .f { background: var(--soft); border-left: 3px solid var(--blue); padding: 8px 12px; border-radius: 4px;
+       margin: 8px 0; font-family: "Cambria Math", "STIX Two Math", Georgia, serif; font-size: 1.02rem; overflow-x: auto; }
+  .tip { background: #fff8e6; border-left: 3px solid var(--orange); padding: 7px 12px; border-radius: 4px; margin: 8px 0; font-size: .9rem; }
+  .checks { border-top: 1px dashed var(--line); margin-top: 12px; padding-top: 6px; }
+  .chk { display: grid; grid-template-columns: 1fr 120px auto; gap: 6px 8px; align-items: center; margin: 8px 0; }
+  .chk.choice-q { grid-template-columns: 1fr 170px auto; }
+  .chk .q { font-size: .92rem; }
+  .chk select { width: 100%; }
+  .fb { grid-column: 1 / -1; font-size: .86rem; display: none; padding: 4px 8px; border-radius: 4px; }
+  .fb.ok { display: block; color: var(--ok); background: #e7f6ee; }
+  .fb.bad { display: block; color: var(--bad); background: #fdecea; }
+  @media (max-width: 480px) { .chk, .chk.choice-q { grid-template-columns: 1fr auto; } .chk .q { grid-column: 1 / -1; } }
+  .work { display: none; background: #f7f9fc; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
+  .work.show { display: block; }
+  .nav { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
+  .score { font-size: .85rem; color: var(--mute); }
+  svg { display: block; width: 100%; height: auto; }
+  .caption { font-size: .86rem; color: var(--mute); margin-top: 6px; }
+  .caption b { color: var(--ink); }
+  .new-note { background: #eaf2ff; color: #1b4fa8; border-radius: 6px; padding: 5px 10px; font-size: .86rem; margin-bottom: 8px; }
+  .element { max-width: 380px; margin: 0 auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; margin-top: 4px; }
+  td, th { padding: 4px 6px; border-bottom: 1px solid var(--grid); text-align: right; }
+  td:first-child, th:first-child { text-align: left; color: var(--mute); }
+  .inline { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+  .newel { animation: pulse 1.4s ease-in-out 3; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mohr's Circle Tutor</h1>
+  <p class="sub">A step-by-step self-learning guide to drawing Mohr's circle for stress and strain.
+    Need a quick calculator instead? Open the <a href="stress.html">stress</a> or <a href="strain.html">strain</a> tool,
+    or go back to <a href="index.html">MECH III Tools</a>.</p>
+</header>
+
+<!-- ================= HOME ================= -->
+<div class="wrap" id="home">
+  <section class="card">
+    <h2>What would you like to learn?</h2>
+    <div class="choices">
+      <button class="choice" type="button" data-mode="stress">
+        <svg viewBox="0 0 96 96" aria-hidden="true">
+          <line x1="4" y1="48" x2="92" y2="48" stroke="#1d2330" stroke-width="1.5"/>
+          <line x1="20" y1="8" x2="20" y2="88" stroke="#1d2330" stroke-width="1.5"/>
+          <circle cx="54" cy="48" r="30" fill="#1f6feb" fill-opacity=".08" stroke="#1d2330" stroke-width="2"/>
+          <line x1="76" y1="28" x2="32" y2="68" stroke="#8a93a3" stroke-dasharray="4 3"/>
+          <circle cx="76" cy="28" r="5" fill="#1f6feb"/><circle cx="32" cy="68" r="5" fill="#d1344a"/>
+          <text x="80" y="18" font-size="13" font-weight="700" fill="#1f6feb">σ</text>
+        </svg>
+        <div><b>Mohr's circle for STRESS</b>
+          <span>Start from σ<sub>x</sub>, σ<sub>y</sub> and τ<sub>xy</sub>. Find principal stresses, maximum shear stress,
+            the principal planes and the stresses on any inclined plane.</span></div>
+      </button>
+      <button class="choice" type="button" data-mode="strain">
+        <svg viewBox="0 0 96 96" aria-hidden="true">
+          <line x1="4" y1="48" x2="92" y2="48" stroke="#1d2330" stroke-width="1.5"/>
+          <line x1="20" y1="8" x2="20" y2="88" stroke="#1d2330" stroke-width="1.5"/>
+          <circle cx="54" cy="48" r="30" fill="#e08a00" fill-opacity=".1" stroke="#1d2330" stroke-width="2"/>
+          <line x1="80" y1="34" x2="28" y2="62" stroke="#8a93a3" stroke-dasharray="4 3"/>
+          <circle cx="80" cy="34" r="5" fill="#1f6feb"/><circle cx="28" cy="62" r="5" fill="#d1344a"/>
+          <text x="80" y="18" font-size="13" font-weight="700" fill="#e08a00">ε</text>
+        </svg>
+        <div><b>Mohr's circle for STRAIN</b>
+          <span>Start from ε<sub>x</sub>, ε<sub>y</sub> and γ<sub>xy</sub> (or a 0°/45°/90° strain-gauge rosette).
+            Find principal strains, maximum shear strain and their directions.</span></div>
+      </button>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>How this tutor works</h2>
+    <ul class="learn">
+      <li>Pick a worked example or type in your own values.</li>
+      <li>Follow one small step at a time &mdash; the circle is built up on screen as you go.</li>
+      <li>Have a sheet of graph paper ready and draw along with each step.</li>
+      <li>Type your answer into <b>Check yourself</b> boxes to get instant feedback.</li>
+      <li>Stuck? Press <b>Show working</b> to see the full calculation with your numbers.</li>
+      <li>Use the step buttons, <b>Next</b>/<b>Back</b>, or the &larr; &rarr; keys to move around.</li>
+    </ul>
+    <p class="hint">Sign convention used throughout (same as the calculator): tension / extension is positive;
+      shear stress and shear strain are <b>positive when they turn the element clockwise</b>, and are plotted <b>upward</b>.
+      With this convention, a rotation on the circle is in the <b>same direction</b> as the rotation of the plane on the element.</p>
+  </section>
+</div>
+
+<!-- ================= LESSON ================= -->
+<div class="wrap" id="lesson" hidden>
+  <div class="topbar">
+    <span class="badge" id="modeBadge"></span>
+    <span class="grow"></span>
+    <button type="button" id="switchMode"></button>
+    <button type="button" id="goHome">&larr; Change topic</button>
+  </div>
+  <div class="progress"><div id="bar"></div></div>
+  <div class="stepper" id="stepper"></div>
+
+  <div class="lesson">
+    <div class="stack">
+      <section class="card data" id="dataCard"></section>
+      <section class="card step" id="stepCard"></section>
+    </div>
+    <div class="stack">
+      <section class="card">
+        <h2 id="circleTitle">Mohr's circle</h2>
+        <div class="new-note" id="newNote"></div>
+        <svg id="mohr" viewBox="0 0 640 500" role="img" aria-label="Mohr's circle being built step by step"></svg>
+        <p class="caption" id="scaleNote"></p>
+      </section>
+      <section class="card">
+        <h2 id="elTitle">Element</h2>
+        <div class="element" id="element"></div>
+        <p class="caption" id="elNote"></p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const D2R = Math.PI / 180;
+
+/* ================= configuration ================= */
+const MODES = {
+  stress: {
+    title: "Mohr's circle for stress", N: 'σ', T: 'τ', u: 'N/mm²', dp: 2,
+    examples: [
+      { label: 'Example 1', x: 80, y: 20, s: 40 },
+      { label: 'Example 2', x: -60, y: 40, s: -30 },
+      { label: 'Example 3', x: 50, y: -30, s: -45 },
+      { label: 'Example 4', x: 120, y: 0, s: 50 }
+    ]
+  },
+  strain: {
+    title: "Mohr's circle for strain", N: 'ε', T: 'γ/2', u: 'µε', dp: 1,
+    examples: [
+      { label: 'Example 1', src: 'direct', x: 600, y: -200, s: 400 },
+      { label: 'Example 2', src: 'direct', x: -300, y: 200, s: -500 },
+      { label: 'Rosette 1', src: 'rosette', ra: 500, rb: 300, rc: -100 },
+      { label: 'Rosette 2', src: 'rosette', ra: -200, rb: 450, rc: 400 }
+    ]
+  }
+};
+
+const S = { mode: null, step: 0, ex: 0, inp: {}, joint: { a: 30, dir: 'ccw' }, ans: {}, work: {} };
+
+/* ================= helpers ================= */
+function fmt(x, d) {
+  if (d === undefined) d = MODES[S.mode] ? MODES[S.mode].dp : 2;
+  if (!isFinite(x)) return '—';
+  if (Math.abs(x) < 0.5 * Math.pow(10, -d)) x = 0;
+  return (+x.toFixed(d)).toString().replace('-', '−');
+}
+const fa = x => fmt(x, 1);                 // angles
+const sgnWord = s => s >= 0 ? 'counter-clockwise' : 'clockwise';
+const norm180 = a => { while (a > 180) a -= 360; while (a <= -180) a += 360; return a; };
+function niceStep(raw) {
+  if (!(raw > 0)) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+}
+const sub = (a, b) => `${a}<sub>${b}</sub>`;
+
+/* ================= model ================= */
+function model() {
+  const isStrain = S.mode === 'strain', I = S.inp;
+  let x = +I.x || 0, y = +I.y || 0, s = +I.s || 0;          // s = τ (stress) or γ (strain), clockwise +
+  if (isStrain && I.src === 'rosette') {
+    x = +I.ra || 0; y = +I.rc || 0; s = x + y - 2 * (+I.rb || 0);
+  }
+  const t = isStrain ? s / 2 : s;                           // vertical coordinate of V
+  const c = (x + y) / 2, d = (x - y) / 2, R = Math.hypot(d, t);
+  const phi = R > 1e-12 ? Math.atan2(t, d) / D2R : 0;       // angle of CV from +N axis (deg, ccw +)
+  const twoP = -phi, thP = twoP / 2;                         // rotation V -> point 1 (ccw +)
+  const twoS = norm180(90 - phi), thS = twoS / 2;            // rotation V -> top shear point
+  const jsg = S.joint.dir === 'ccw' ? 1 : -1, ja = Math.max(0, Math.min(180, +S.joint.a || 0));
+  const aJ = phi + jsg * 2 * ja;
+  const span = Math.max(c + R, 0) - Math.min(c - R, 0);
+  const scale = niceStep(Math.max(span, 2 * R, 1e-9) / 14); // units per cm on paper
+  return { isStrain, x, y, s, t, c, d, R, phi, twoP, thP, twoS, thS, p1: c + R, p2: c - R,
+           ja, jsg, aJ, Jn: c + R * Math.cos(aJ * D2R), Jt: R * Math.sin(aJ * D2R), scale };
+}
+function stateAt(m, deg) {                                   // element rotated deg ccw from x
+  const a = (m.phi + 2 * deg) * D2R;
+  return { n1: m.c + m.R * Math.cos(a), n2: m.c - m.R * Math.cos(a), t: m.R * Math.sin(a) };
+}
+
+/* ================= steps ================= */
+function buildSteps(m) {
+  const M = MODES[S.mode], N = M.N, u = M.u, f = v => fmt(v), str = m.isStrain;
+  const V = str ? `(${sub('ε', 'x')}, ${sub('γ', 'xy')}/2)` : `(${sub('σ', 'x')}, ${sub('τ', 'xy')})`;
+  const Hc = str ? `(${sub('ε', 'y')}, −${sub('γ', 'xy')}/2)` : `(${sub('σ', 'y')}, −${sub('τ', 'xy')})`;
+  const Tsym = str ? `${sub('γ', 'xy')}/2` : sub('τ', 'xy');
+  const tolV = v => Math.max(0.02 * Math.abs(v), 0.02 * Math.max(m.R, 1e-9), 0.6 * Math.pow(10, -M.dp));
+  const val = (k, q, v, hint, unit = u) => ({ k, type: 'val', q, v, tol: tolV(v), hint, unit });
+  const ang = (k, q, v, hint) => ({ k, type: 'val', q, v, tol: 1, hint, unit: '°' });
+  const ch = (k, q, opts, v, hint) => ({ k, type: 'choice', q, opts, v, hint });
+  const steps = [];
+
+  /* 1 — given data */
+  if (!str) {
+    steps.push({ key: 'given', short: 'Given data', level: 1, el: 0,
+      title: 'Understand the given stresses',
+      body: `<p>Look at the stress element on the right. It shows the stresses acting on the
+          <b>vertical faces (V)</b> and the <b>horizontal faces (H)</b>.</p>
+        <ul>
+          <li>${sub('σ', 'x')} = <b>${f(m.x)}</b> ${u} acts on the vertical faces, ${sub('σ', 'y')} = <b>${f(m.y)}</b> ${u} on the horizontal faces.
+            Tension is <b>+</b>, compression is <b>−</b>.</li>
+          <li>${sub('τ', 'xy')} = <b>${f(m.s)}</b> ${u} is the shear on the vertical faces. It is <b>positive when it tends to turn the element clockwise</b>.</li>
+          <li>The shear on the horizontal faces is equal in size but turns the element the other way, so on H it is <b>${f(-m.s)}</b> ${u}.</li>
+        </ul>
+        <div class="tip">Getting the signs right here is the most important part. Every later step depends on it.</div>`,
+      checks: [
+        Math.abs(m.y) > 1e-9 && ch('ysense', `Is ${sub('σ', 'y')} tensile or compressive?`, ['tensile', 'compressive'],
+          m.y > 0 ? 'tensile' : 'compressive', 'Tensile stresses pull away from the face (+), compressive push into it (−).'),
+        Math.abs(m.s) > 1e-9 && ch('tsense', 'The shear on the vertical faces turns the element…', ['clockwise', 'anticlockwise'],
+          m.s > 0 ? 'clockwise' : 'anticlockwise', 'Look at the red arrows on the left and right faces of the element: which way would they spin it?')
+      ],
+      work: `<p>Given: ${sub('σ', 'x')} = ${f(m.x)}, ${sub('σ', 'y')} = ${f(m.y)}, ${sub('τ', 'xy')} = ${f(m.s)} ${u}
+        (${m.s >= 0 ? 'clockwise' : 'anticlockwise'} on the vertical faces).</p>`
+    });
+  } else if (S.inp.src === 'rosette') {
+    steps.push({ key: 'given', short: 'Rosette', level: 1, el: 0,
+      title: 'Convert the rosette readings to ε<sub>x</sub>, ε<sub>y</sub>, γ<sub>xy</sub>',
+      body: `<p>A 0°/45°/90° rectangular rosette has three gauges: <b>a</b> along x (0°), <b>b</b> at 45° counter-clockwise from x,
+          and <b>c</b> along y (90°).</p>
+        <p>Readings: ${sub('ε', 'a')} = <b>${f(+S.inp.ra || 0)}</b>, ${sub('ε', 'b')} = <b>${f(+S.inp.rb || 0)}</b>,
+          ${sub('ε', 'c')} = <b>${f(+S.inp.rc || 0)}</b> ${u}.</p>
+        <ol>
+          <li>Gauges a and c read the normal strains directly: ${sub('ε', 'x')} = ${sub('ε', 'a')}, ${sub('ε', 'y')} = ${sub('ε', 'c')}.</li>
+          <li>The 45° gauge gives the shear strain (clockwise positive):</li>
+        </ol>
+        <div class="f">${sub('γ', 'xy')} = ${sub('ε', 'x')} + ${sub('ε', 'y')} − 2${sub('ε', 'b')}</div>
+        <div class="tip">Many textbooks use anticlockwise-positive shear and write γ = 2ε<sub>b</sub> − ε<sub>x</sub> − ε<sub>y</sub>.
+          That is the same physical strain with the opposite sign.</div>`,
+      checks: [
+        val('ex', `${sub('ε', 'x')} =`, m.x, 'Gauge a lies along x.'),
+        val('ey', `${sub('ε', 'y')} =`, m.y, 'Gauge c lies along y.'),
+        val('g', `${sub('γ', 'xy')} =`, m.s, 'Use γ = εx + εy − 2εb. Watch the signs of negative readings.')
+      ],
+      work: `<div class="f">${sub('γ', 'xy')} = ${f(m.x)} + (${f(m.y)}) − 2(${f(+S.inp.rb || 0)}) = <b>${f(m.s)}</b> ${u}</div>
+        <p>So ${sub('ε', 'x')} = ${f(m.x)}, ${sub('ε', 'y')} = ${f(m.y)}, ${sub('γ', 'xy')} = ${f(m.s)} ${u}
+        (${m.s >= 0 ? 'clockwise' : 'anticlockwise'}).</p>`
+    });
+  } else {
+    steps.push({ key: 'given', short: 'Given data', level: 1, el: 0,
+      title: 'Understand the given strains',
+      body: `<p>The element on the right shows how a small square deforms (greatly exaggerated, orange dashed).</p>
+        <ul>
+          <li>${sub('ε', 'x')} = <b>${f(m.x)}</b> ${u} is the normal strain in x; ${sub('ε', 'y')} = <b>${f(m.y)}</b> ${u} in y.
+            Extension (stretching) is <b>+</b>, contraction is <b>−</b>.</li>
+          <li>${sub('γ', 'xy')} = <b>${f(m.s)}</b> ${u} is the shear strain (change of the right angle).
+            It is <b>positive clockwise</b>, i.e. the same sense as a clockwise shear stress on the vertical faces.</li>
+          <li>1 µε = 10<sup>−6</sup> (micro-strain).</li>
+        </ul>
+        <div class="tip">Mohr's strain circle plots <b>γ/2</b>, not γ, on the vertical axis. Keep this in mind for the next step.</div>`,
+      checks: [
+        Math.abs(m.x) > 1e-9 && ch('xsense', 'In the x direction the element is…', ['stretched', 'shortened'],
+          m.x > 0 ? 'stretched' : 'shortened', 'Positive normal strain means extension.'),
+        Math.abs(m.s) > 1e-9 && ch('gsense', 'Is the shear strain clockwise or anticlockwise?', ['clockwise', 'anticlockwise'],
+          m.s > 0 ? 'clockwise' : 'anticlockwise', 'Positive γ is clockwise in this tutor.')
+      ],
+      work: `<p>Given: ${sub('ε', 'x')} = ${f(m.x)}, ${sub('ε', 'y')} = ${f(m.y)}, ${sub('γ', 'xy')} = ${f(m.s)} ${u}.</p>`
+    });
+  }
+
+  /* 2 — coordinates */
+  steps.push({ key: 'coords', short: 'V & H points', level: 2, el: 0,
+    title: 'Write down the coordinates of points V and H',
+    body: `<p>Each face of the element becomes one point on Mohr's circle, written as (normal, shear):</p>
+      <div class="f">V = ${V} &nbsp;&nbsp;&nbsp; H = ${Hc}</div>
+      <ul>
+        <li><b>V</b> = the vertical face (normal along x).</li>
+        <li><b>H</b> = the horizontal face (normal along y). Its shear coordinate is the <b>negative</b> of V's.</li>
+      </ul>
+      ${str ? `<div class="tip">Halve the shear strain! The vertical coordinate is γ<sub>xy</sub>/2 = ${f(m.s)}/2 = ${f(m.t)} ${u}.</div>` : ''}`,
+    checks: [
+      val('vN', `Normal coordinate of V =`, m.x, `V's normal coordinate is ${str ? 'εx' : 'σx'}.`),
+      val('vT', `Shear coordinate of V =`, m.t, str ? 'Use γxy/2, not γxy.' : 'V\'s shear coordinate is τxy (clockwise +).'),
+      val('hN', `Normal coordinate of H =`, m.y, `H's normal coordinate is ${str ? 'εy' : 'σy'}.`),
+      val('hT', `Shear coordinate of H =`, -m.t, 'H has the same size of shear as V but the opposite sign.')
+    ],
+    work: `<div class="f">V = (${f(m.x)}, ${f(m.t)}) &nbsp;&nbsp;&nbsp; H = (${f(m.y)}, ${f(-m.t)}) &nbsp;${u}</div>`
+  });
+
+  /* 3 — axes & scale */
+  steps.push({ key: 'axes', short: 'Axes & scale', level: 3, el: 0,
+    title: 'Draw the axes and choose a scale',
+    body: `<ol>
+        <li>Draw a horizontal axis for <b>${N}</b>: ${str ? 'extension' : 'tension'} positive to the right.</li>
+        <li>Draw a vertical axis for <b>${M.T}</b>: clockwise shear positive <b>upward</b>.</li>
+        <li>Use the <b>same scale on both axes</b>, otherwise your circle becomes an ellipse.</li>
+        <li>Include the origin (0, 0) so you can read values directly.</li>
+      </ol>
+      <p>Your values run from about ${f(Math.min(m.c - m.R, 0))} to ${f(Math.max(m.c + m.R, 0))} ${u}.
+        A convenient scale for A4 graph paper is:</p>
+      <div class="f">1 cm = ${fmt(m.scale, 3)} ${u}</div>`,
+    checks: [
+      ch('up', `Positive (clockwise) ${str ? 'γ/2' : 'τ'} is plotted…`, ['upward', 'downward'], 'upward',
+        'In this convention clockwise shear is plotted upward.'),
+      ch('same', 'The two axes must use…', ['the same scale', 'different scales'], 'the same scale',
+        'A circle is only a circle if both axes have the same scale.')
+    ],
+    work: `<p>Range needed horizontally ≈ ${f(Math.max(m.c + m.R, 0) - Math.min(m.c - m.R, 0))} ${u}, vertically ≈ ${f(2 * m.R)} ${u}.
+      With 1 cm = ${fmt(m.scale, 3)} ${u} this needs about
+      ${fmt((Math.max(m.c + m.R, 0) - Math.min(m.c - m.R, 0)) / m.scale, 1)} cm × ${fmt(2 * m.R / m.scale, 1)} cm.</p>`
+  });
+
+  /* 4 — plot */
+  const vPos = m.t > 1e-9 ? 'above the axis' : m.t < -1e-9 ? 'below the axis' : 'on the axis';
+  steps.push({ key: 'plot', short: 'Plot V & H', level: 4, el: 0,
+    title: 'Plot points V and H',
+    body: `<p>Mark both points on your graph paper:</p>
+      <ul>
+        <li><b style="color:var(--blue)">V</b> (${f(m.x)}, ${f(m.t)}) → ${fmt(m.x / m.scale, 2)} cm across, ${fmt(m.t / m.scale, 2)} cm up.</li>
+        <li><b style="color:var(--red)">H</b> (${f(m.y)}, ${f(-m.t)}) → ${fmt(m.y / m.scale, 2)} cm across, ${fmt(-m.t / m.scale, 2)} cm up.</li>
+      </ul>
+      <p class="hint">(Negative "across" means to the left of the origin, negative "up" means below the axis.)</p>`,
+    checks: [ch('vpos', 'Point V lies…', ['above the axis', 'below the axis', 'on the axis'], vPos,
+      `V's shear coordinate is ${f(m.t)}. Positive is plotted upward.`)],
+    work: `<p>V is ${vPos}; H is the mirror image of V's height, so it is on the opposite side of the axis.</p>`
+  });
+
+  /* 5 — centre */
+  steps.push({ key: 'centre', short: 'Centre C', level: 5, el: 0,
+    title: 'Join V and H to find the centre C',
+    body: `<p>Draw a straight line from V to H. This line is a <b>diameter</b> of Mohr's circle.
+        Where it crosses the ${N} axis is the <b>centre C</b>.</p>
+      <div class="f">C = (${sub(N, 'x')} + ${sub(N, 'y')}) / 2</div>
+      <p class="hint">C always lies on the ${N} axis, halfway between V and H horizontally.</p>`,
+    checks: [val('C', 'Centre C =', m.c, 'Add the two normal values and divide by 2.')],
+    work: `<div class="f">C = (${f(m.x)} + (${f(m.y)})) / 2 = <b>${f(m.c)}</b> ${u}</div>`
+  });
+
+  /* 6 — radius */
+  steps.push({ key: 'radius', short: 'Radius R', level: 6, el: 0,
+    title: 'Find the radius R',
+    body: `<p>The radius is the distance from C to V. From the right-angled triangle formed by C, V and the
+        point directly below/above V on the axis:</p>
+      <div class="f">R = √[ ((${sub(N, 'x')} − ${sub(N, 'y')}) / 2)² + (${Tsym})² ]</div>
+      <p class="hint">Check: measure CV on your drawing with a ruler and multiply by the scale.</p>`,
+    checks: [val('R', 'Radius R =', m.R, `Horizontal side = (${str ? 'εx − εy' : 'σx − σy'})/2, vertical side = ${str ? 'γ/2' : 'τ'}. Then use Pythagoras.`)],
+    work: `<div class="f">(${sub(N, 'x')} − ${sub(N, 'y')}) / 2 = (${f(m.x)} − (${f(m.y)})) / 2 = ${f(m.d)}<br>
+      R = √[ (${f(m.d)})² + (${f(m.t)})² ] = <b>${f(m.R)}</b> ${u}</div>
+      <p>On paper: R = ${f(m.R)} / ${fmt(m.scale, 3)} = ${fmt(m.R / m.scale, 2)} cm.</p>`
+  });
+
+  /* 7 — circle */
+  steps.push({ key: 'circle', short: 'Draw circle', level: 7, el: 0,
+    title: 'Draw the circle',
+    body: `<p>Put the compass point on <b>C</b>, open it to <b>V</b> and draw the circle.
+        It must also pass through <b>H</b> — if it does not, re-check your points.</p>
+      <p>Every point on this circle represents the ${str ? 'normal strain and half shear strain' : 'normal and shear stress'}
+        on one plane through the material.</p>`,
+    checks: [val('dia', 'Diameter of the circle on your paper (cm) =', 2 * m.R / m.scale,
+      `Diameter = 2R ÷ scale = 2 × ${f(m.R)} ÷ ${fmt(m.scale, 3)}.`, 'cm')],
+    work: `<div class="f">Diameter = 2R / scale = 2 × ${f(m.R)} / ${fmt(m.scale, 3)} = <b>${fmt(2 * m.R / m.scale, 2)}</b> cm</div>`
+  });
+
+  /* 8 — principal values */
+  const P1 = str ? sub('ε', '1') : sub('σ', '1'), P2 = str ? sub('ε', '2') : sub('σ', '2');
+  steps.push({ key: 'principal', short: 'Principal values', level: 8, el: 0,
+    title: `Read the principal ${str ? 'strains' : 'stresses'}`,
+    body: `<p>The circle cuts the ${N} axis at two points. There the shear is <b>zero</b>, so these are the
+        <b>principal ${str ? 'strains' : 'stresses'}</b> — the largest and smallest normal values.</p>
+      <div class="f">${P1} = C + R &nbsp;&nbsp;&nbsp; ${P2} = C − R</div>`,
+    checks: [
+      val('p1', `Maximum principal ${P1} =`, m.p1, 'Right-hand end of the circle: C + R.'),
+      val('p2', `Minimum principal ${P2} =`, m.p2, 'Left-hand end of the circle: C − R.')
+    ],
+    work: `<div class="f">${P1} = ${f(m.c)} + ${f(m.R)} = <b>${f(m.p1)}</b> ${u}<br>${P2} = ${f(m.c)} − ${f(m.R)} = <b>${f(m.p2)}</b> ${u}</div>`
+  });
+
+  /* 9 — maximum shear */
+  steps.push({ key: 'shear', short: 'Max shear', level: 9, el: 0,
+    title: `Read the maximum shear ${str ? 'strain' : 'stress'}`,
+    body: `<p>The highest and lowest points of the circle (directly above and below C) give the maximum shear.</p>
+      ${str
+        ? `<div class="f">γ<sub>max</sub>/2 = R &nbsp;⇒&nbsp; γ<sub>max</sub> = 2R</div>
+           <div class="tip">The vertical axis is γ/2, so you must <b>double</b> the radius to get the maximum shear strain.</div>`
+        : `<div class="f">τ<sub>max</sub> = R</div>`}
+      <p>On the maximum-shear planes the normal ${str ? 'strain' : 'stress'} is <b>not</b> zero: it equals C.</p>`,
+    checks: [
+      str ? val('gmax', 'Maximum in-plane shear strain γmax =', 2 * m.R, 'γmax = 2R (remember the axis is γ/2).')
+          : val('tmax', 'Maximum shear stress τmax =', m.R, 'τmax is the radius of the circle.'),
+      val('nC', `Normal ${str ? 'strain' : 'stress'} on the max-shear planes =`, m.c, 'The top and bottom points sit directly above/below C.')
+    ],
+    work: str
+      ? `<div class="f">γ<sub>max</sub> = 2 × ${f(m.R)} = <b>${f(2 * m.R)}</b> ${u} &nbsp;&nbsp; ε on those planes = C = <b>${f(m.c)}</b> ${u}</div>`
+      : `<div class="f">τ<sub>max</sub> = R = <b>${f(m.R)}</b> ${u} &nbsp;&nbsp; σ on those planes = C = <b>${f(m.c)}</b> ${u}</div>`
+  });
+
+  /* 10 — principal angle */
+  const a0 = Math.abs(m.d) > 1e-12 ? Math.atan(Math.abs(m.t) / Math.abs(m.d)) / D2R : 90;
+  const dir = Math.abs(m.twoP) < 1e-9 ? 'none' : m.twoP > 0 ? 'counter-clockwise' : 'clockwise';
+  steps.push({ key: 'angle', short: 'Principal angle', level: 10, el: 'p',
+    title: `Find the principal ${str ? 'directions' : 'planes'} (angle θ<sub>p</sub>)`,
+    body: `<p>Measure the angle on the circle from line <b>CV</b> to line <b>C–${P1}</b>. This angle is <b>2θ<sub>p</sub></b>.</p>
+      <div class="f">tan α = |${Tsym}| / |(${sub(N, 'x')} − ${sub(N, 'y')})/2| &nbsp;&nbsp; then 2θ<sub>p</sub> = α (if V is right of C) or 180° − α (if V is left of C)</div>
+      <ol>
+        <li>Note the <b>direction</b> you turn on the circle going from V to ${P1}.</li>
+        <li>On the element, rotate the vertical face by <b>θ<sub>p</sub></b> (half the angle) in the <b>same direction</b>.
+          That gives the plane ${str ? '(direction)' : ''} on which ${P1} acts.</li>
+        <li>${P2} acts at 90° to it.</li>
+      </ol>
+      <div class="tip">Always halve the angle! Angles on Mohr's circle are <b>twice</b> the real angles in the material.</div>`,
+    checks: [
+      ang('thp', 'Size of θp (degrees) =', Math.abs(m.thP), 'Find 2θp from the drawing or with tan, then halve it.'),
+      dir !== 'none' && ch('thdir', 'Rotation from V to the principal plane is…', ['clockwise', 'counter-clockwise'], dir,
+        `Look at the arc on the circle from V to ${str ? 'ε1' : 'σ1'}.`)
+    ],
+    work: Math.abs(m.t) < 1e-12
+      ? `<p>The shear is zero, so V is already a principal point: ${m.x >= m.y ? `the vertical face carries ${P1} (θ<sub>p</sub> = 0°)` : `the vertical face carries ${P2}, and ${P1} is on the horizontal face (θ<sub>p</sub> = 90°)`}.</p>`
+      : `<div class="f">tan α = ${f(Math.abs(m.t))} / ${f(Math.abs(m.d))} ⇒ α = ${fa(a0)}°<br>
+        V is ${m.d >= 0 ? 'right' : 'left'} of C ⇒ 2θ<sub>p</sub> = ${m.d >= 0 ? fa(a0) : `180° − ${fa(a0)}° = ${fa(180 - a0)}`}°<br>
+        θ<sub>p</sub> = <b>${fa(Math.abs(m.thP))}°</b> ${dir}</div>
+        <p>So ${P1} = ${f(m.p1)} ${u} acts on the plane obtained by rotating the vertical face ${fa(Math.abs(m.thP))}° ${dir};
+        ${P2} = ${f(m.p2)} ${u} acts on the plane at 90° to it.
+        The maximum shear planes are at 45° to the principal planes (${fa(Math.abs(m.thS))}° ${m.thS >= 0 ? 'counter-clockwise' : 'clockwise'} from V gives the top point).</p>`
+  });
+
+  /* 11 — inclined plane */
+  const Jw = m.jsg > 0 ? 'counter-clockwise' : 'clockwise';
+  steps.push({ key: 'plane', short: 'Inclined plane', level: 11, el: 'j',
+    title: `Find the ${str ? 'strain in any direction' : 'stresses on any inclined plane'}`,
+    body: `<p>Choose a plane by rotating the vertical face (V) by an angle θ:</p>
+      <div class="inline">
+        <label>θ (degrees)<input type="number" id="jA" min="0" max="180" step="any" value="${S.joint.a}"></label>
+        <label>Direction<select id="jD"><option value="ccw" ${S.joint.dir === 'ccw' ? 'selected' : ''}>Counter-clockwise</option>
+          <option value="cw" ${S.joint.dir === 'cw' ? 'selected' : ''}>Clockwise</option></select></label>
+      </div>
+      <ol>
+        <li>On the circle, start at <b>V</b> and rotate the radius CV by <b>2θ = ${fa(2 * m.ja)}°</b> ${Jw}. Mark point <b style="color:var(--purple)">J</b>.</li>
+        <li>Read the coordinates of J: horizontal = ${str ? 'normal strain εθ' : 'normal stress σθ'},
+          vertical = ${str ? 'γθ/2 (double it to get γθ)' : 'shear stress τθ (clockwise +)'}.</li>
+      </ol>
+      <div class="f">${N}<sub>θ</sub> = C + R cos(φ ${m.jsg > 0 ? '+' : '−'} 2θ) &nbsp;&nbsp; ${str ? 'γ<sub>θ</sub>/2' : 'τ<sub>θ</sub>'} = R sin(φ ${m.jsg > 0 ? '+' : '−'} 2θ)</div>
+      <p class="hint">φ is the angle of CV measured counter-clockwise from the +${N} axis (negative if V is below the axis).</p>`,
+    checks: [
+      val('jn', `${str ? 'Normal strain εθ' : 'Normal stress σθ'} =`, m.Jn, 'Horizontal coordinate of J.'),
+      str ? val('jg', 'Shear strain γθ =', 2 * m.Jt, 'Vertical coordinate of J is γθ/2 — double it.')
+          : val('jt', 'Shear stress τθ =', m.Jt, 'Vertical coordinate of J (positive = clockwise, plotted up).')
+    ],
+    work: `<div class="f">φ = ${fa(m.phi)}° &nbsp;&nbsp; φ ${m.jsg > 0 ? '+' : '−'} 2θ = ${fa(m.phi)}° ${m.jsg > 0 ? '+' : '−'} ${fa(2 * m.ja)}° = ${fa(m.aJ)}°<br>
+      ${N}<sub>θ</sub> = ${f(m.c)} + ${f(m.R)} × cos(${fa(m.aJ)}°) = <b>${f(m.Jn)}</b> ${u}<br>
+      ${str ? `γ<sub>θ</sub>/2 = ${f(m.R)} × sin(${fa(m.aJ)}°) = ${f(m.Jt)} ⇒ γ<sub>θ</sub> = <b>${f(2 * m.Jt)}</b> ${u}`
+            : `τ<sub>θ</sub> = ${f(m.R)} × sin(${fa(m.aJ)}°) = <b>${f(m.Jt)}</b> ${u}`}</div>`
+  });
+
+  /* 12 — summary */
+  const rows = str
+    ? [['ε<sub>x</sub>, ε<sub>y</sub>, γ<sub>xy</sub>', `${f(m.x)}, ${f(m.y)}, ${f(m.s)}`], ['Centre C', f(m.c)], ['Radius R', f(m.R)],
+       ['ε<sub>1</sub> (max principal)', f(m.p1)], ['ε<sub>2</sub> (min principal)', f(m.p2)],
+       ['γ<sub>max</sub> = 2R', f(2 * m.R)], ['θ<sub>p</sub> from V', `${fa(Math.abs(m.thP))}° ${m.thP >= 0 ? 'ccw' : 'cw'}`],
+       [`Direction θ = ${fa(m.ja)}° ${m.jsg > 0 ? 'ccw' : 'cw'}: ε<sub>θ</sub>, γ<sub>θ</sub>`, `${f(m.Jn)}, ${f(2 * m.Jt)}`]]
+    : [['σ<sub>x</sub>, σ<sub>y</sub>, τ<sub>xy</sub>', `${f(m.x)}, ${f(m.y)}, ${f(m.s)}`], ['Centre C', f(m.c)], ['Radius R', f(m.R)],
+       ['σ<sub>1</sub> (max principal)', f(m.p1)], ['σ<sub>2</sub> (min principal)', f(m.p2)],
+       ['τ<sub>max</sub> = R', f(m.R)], ['θ<sub>p</sub> from V', `${fa(Math.abs(m.thP))}° ${m.thP >= 0 ? 'ccw' : 'cw'}`],
+       [`Plane θ = ${fa(m.ja)}° ${m.jsg > 0 ? 'ccw' : 'cw'}: σ<sub>θ</sub>, τ<sub>θ</sub>`, `${f(m.Jn)}, ${f(m.Jt)}`]];
+  steps.push({ key: 'summary', short: 'Summary', level: 12, el: 'p',
+    title: 'Summary & self-review',
+    body: `<p>Compare these with your hand-drawn circle (units: ${u}, angles in degrees):</p>
+      <table>${rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('')}</table>
+      <h3>Quick recap</h3>
+      <ol>
+        <li>V = ${V}, H = ${Hc}.</li>
+        <li>Join V–H: it crosses the axis at C; R = CV.</li>
+        <li>${P1}, ${P2} = C ± R; ${str ? 'γ<sub>max</sub> = 2R' : 'τ<sub>max</sub> = R'}.</li>
+        <li>Angles on the circle are 2θ, in the same direction as on the element.</li>
+      </ol>
+      <p>Try another example from the <b>Given data</b> box above, or switch to the
+        <a href="#" id="otherMode">${str ? 'stress' : 'strain'} tutorial</a>.</p>`,
+    checks: [], work: ''
+  });
+
+  steps.forEach(s => { s.checks = (s.checks || []).filter(Boolean); });
+  return steps;
+}
+
+const NEW_NOTE = {
+  1: 'Nothing drawn yet — first understand the element on the right.',
+  2: 'Nothing drawn yet — work out the coordinates of V and H.',
+  3: 'New: the axes, with a matching grid.',
+  4: 'New: points V and H (with guide lines to the axes).',
+  5: 'New: diameter V–H and the centre C.',
+  6: 'New: the radius CV and its right-angled triangle.',
+  7: 'New: the circle.',
+  8: 'New: principal points 1 and 2 on the axis.',
+  9: 'New: maximum shear points at the top and bottom.',
+  10: 'New: the angle 2θp from V to point 1.',
+  11: 'New: point J for the chosen plane, at 2θ from V.',
+  12: 'The complete Mohr\'s circle.'
+};
+
+/* ================= SVG helpers ================= */
+const line = (x1, y1, x2, y2, stroke, w = 1, extra = '') =>
+  `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${w}" ${extra}/>`;
+let FS = 1;   // font scale for the Mohr diagram on narrow screens
+const text = (x, y, s, o = {}) =>
+  `<text x="${x}" y="${y}" font-size="${(o.size || 12) * FS}" fill="${o.fill || '#1d2330'}" text-anchor="${o.anchor || 'middle'}"
+     dominant-baseline="middle" ${o.bold ? 'font-weight="600"' : ''} paint-order="stroke" stroke="#fff" stroke-width="${o.halo === false ? 0 : 3}">${s}</text>`;
+function arrow(x1, y1, x2, y2, color, w = 2.2, hl = 8, hw = 4) {
+  const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+  const bx = x2 - ux * hl, by = y2 - uy * hl;
+  return line(x1, y1, bx, by, color, w) +
+    `<polygon points="${x2},${y2} ${bx - uy * hw},${by + ux * hw} ${bx + uy * hw},${by - ux * hw}" fill="${color}"/>`;
+}
+
+/* ================= Mohr circle ================= */
+function drawMohr(m, level) {
+  const svg = $('mohr'), M = MODES[S.mode];
+  const pw = svg.getBoundingClientRect().width || 640;
+  FS = Math.max(1, Math.min(1.7, 560 / pw));
+  const W = 640, H = 500, mg = 44;
+  const R = Math.max(m.R, 1e-9), c = m.c;
+  const pad = 0.3 * Math.max(R, Math.abs(c) * 0.15, 1e-9);
+  const xlo = Math.min(c - R, 0) - pad, xhi = Math.max(c + R, 0) + pad, yr = R * 1.3;
+  const k = Math.min((W - 2 * mg) / (xhi - xlo), (H - 2 * mg) / (2 * yr));
+  const ox = W / 2 - k * (xlo + xhi) / 2, oy = H / 2;
+  const X = v => ox + v * k, Y = t => oy - t * k;
+  const blue = '#1f6feb', red = '#d1344a', green = '#1a8f5a', teal = '#0e8a9b', purple = '#8e44ad', grey = '#8a93a3';
+  const nw = lv => lv === level ? 'class="newel"' : '';
+  const g = (lv, inner) => level >= lv ? `<g ${nw(lv)}>${inner}</g>` : '';
+  let o = '';
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${level < 3 ? 200 : H}`);
+  if (level < 3) {
+    const H = 200;
+    o += text(W / 2, H / 2 - 10, 'Your Mohr\'s circle will appear here', { size: 16, fill: grey });
+    o += text(W / 2, H / 2 + 16, 'as you work through the steps.', { size: 14, fill: grey });
+    svg.innerHTML = o; FS = 1; return;
+  }
+  // grid + axes
+  const step = m.scale, every = Math.max(1, Math.ceil(36 / (step * k)));   // label stride so numbers don't collide
+  const lbl = v => Math.abs(v) > step / 1e3 && Math.round(v / step) % every === 0;
+  let gi = '';
+  for (let v = Math.ceil((-ox / k) / step) * step; X(v) <= W; v += step) {
+    gi += line(X(v), 0, X(v), H, '#e9ecf1');
+    if (lbl(v)) gi += text(X(v), oy + 13, fmt(v, 3), { size: 10, fill: grey });
+  }
+  for (let t = Math.ceil(((oy - H) / k) / step) * step; Y(t) >= 0; t += step) {
+    gi += line(0, Y(t), W, Y(t), '#e9ecf1');
+    if (lbl(t)) gi += text(X(0) + 6, Y(t), fmt(t, 3), { size: 10, fill: grey, anchor: 'start' });
+  }
+  gi += arrow(6, oy, W - 6, oy, '#1d2330', 1.4);
+  gi += text(W - 8, oy - 14, `${M.N} (${M.u})`, { size: 13, bold: true, anchor: 'end' });
+  gi += arrow(X(0), H - 6, X(0), 8, '#1d2330', 1.4);
+  gi += text(X(0) + 10, 16, `${M.T} (${M.u}, clockwise +)`, { size: 12, bold: true, anchor: 'start' });
+  gi += text(X(0) - 8, oy + 13, '0', { size: 11, fill: grey });
+  o += g(3, gi);
+
+  const V = [m.x, m.t], Hh = [m.y, -m.t];
+  // guide lines + points V, H (drawn last so they sit on top) – guides now
+  o += g(4, line(X(V[0]), Y(V[1]), X(V[0]), oy, blue, 1, 'stroke-dasharray="3 3"') +
+            line(X(V[0]), Y(V[1]), X(0), Y(V[1]), blue, 1, 'stroke-dasharray="3 3"') +
+            line(X(Hh[0]), Y(Hh[1]), X(Hh[0]), oy, red, 1, 'stroke-dasharray="3 3"') +
+            line(X(Hh[0]), Y(Hh[1]), X(0), Y(Hh[1]), red, 1, 'stroke-dasharray="3 3"'));
+  // circle
+  o += g(7, `<circle cx="${X(c)}" cy="${oy}" r="${R * k}" fill="#1f6feb" fill-opacity=".06" stroke="#1d2330" stroke-width="2"/>`);
+  // diameter + C
+  o += g(5, line(X(V[0]), Y(V[1]), X(Hh[0]), Y(Hh[1]), '#5b6475', 1.6, 'stroke-dasharray="6 4"') +
+            `<circle cx="${X(c)}" cy="${oy}" r="4" fill="#1d2330"/>` +
+            text(X(c), oy + 30, `C = ${fmt(c)}`, { bold: true, size: 13 }));
+  // radius triangle
+  o += g(6, line(X(c), oy, X(V[0]), oy, '#e08a00', 2) + line(X(V[0]), oy, X(V[0]), Y(V[1]), '#e08a00', 2) +
+            line(X(c), oy, X(V[0]), Y(V[1]), '#1d2330', 2.6) +
+            (() => {   // R label offset perpendicular to CV, away from the triangle
+              const dx = X(V[0]) - X(c), dy = Y(V[1]) - oy, L = Math.hypot(dx, dy) || 1;
+              let nx = -dy / L, ny = dx / L;
+              const mx = (X(c) + X(V[0])) / 2, my = (oy + Y(V[1])) / 2;            // corner of triangle is (X(V0), oy)
+              if (nx * (X(V[0]) - mx) + ny * (oy - my) > 0) { nx = -nx; ny = -ny; }
+              return text(mx + nx * 16, my + ny * 16, `R = ${fmt(m.R)}`, { bold: true, size: 13 });
+            })() +
+            text((X(c) + X(V[0])) / 2, oy + (m.t >= 0 ? 14 : -14), `${fmt(m.d)}`, { fill: '#b06a00', size: 11 }) +
+            text(X(V[0]) + (m.d >= 0 ? 8 : -8), (oy + Y(V[1])) / 2, `${fmt(m.t)}`, { fill: '#b06a00', size: 11, anchor: m.d >= 0 ? 'start' : 'end' }));
+  // principal
+  const P1 = m.isStrain ? 'ε₁' : 'σ₁', P2 = m.isStrain ? 'ε₂' : 'σ₂';
+  o += g(8, `<circle cx="${X(m.p1)}" cy="${oy}" r="5.5" fill="${green}"/><circle cx="${X(m.p2)}" cy="${oy}" r="5.5" fill="${green}"/>` +
+            text(X(m.p1) + 6, oy - 14, `${P1} = ${fmt(m.p1)}`, { fill: green, bold: true, anchor: 'start' }) +
+            text(X(m.p2) - 6, oy - 14, `${P2} = ${fmt(m.p2)}`, { fill: green, bold: true, anchor: 'end' }));
+  // max shear
+  const ms = m.isStrain ? 'γmax/2' : 'τmax';
+  o += g(9, `<circle cx="${X(c)}" cy="${Y(R)}" r="5.5" fill="${teal}"/><circle cx="${X(c)}" cy="${Y(-R)}" r="5.5" fill="${teal}"/>` +
+            line(X(c), Y(R), X(c), Y(-R), teal, 1.2, 'stroke-dasharray="2 3"') +
+            text(X(c) + 10, Y(R) - 12, `+${ms} = ${fmt(m.R)}`, { fill: teal, bold: true, anchor: 'start' }) +
+            text(X(c) + 10, Y(-R) + 13, `−${ms} = ${fmt(-m.R)}`, { fill: teal, bold: true, anchor: 'start' }));
+
+  // arcs
+  const arc = (a0, a1, r, col, label) => {
+    if (Math.abs(a1 - a0) < 1e-6) return '';
+    const A0 = a0 * D2R, A1 = a1 * D2R, cx = X(c);
+    const pp = a => `${cx + r * Math.cos(a)} ${oy - r * Math.sin(a)}`;
+    const am = (A0 + A1) / 2, lr = r + 22, dirn = Math.sign(A1 - A0);
+    const ly = Math.abs(Math.sin(am)) < 0.3 ? (Math.sin(am) >= 0 ? -14 : 14) : 0;   // keep label off the axis
+    const ex = cx + r * Math.cos(A1), ey = oy - r * Math.sin(A1);
+    const tx = -Math.sin(A1) * dirn, ty = -Math.cos(A1) * dirn;
+    return `<path d="M ${pp(A0)} A ${r} ${r} 0 ${Math.abs(A1 - A0) > Math.PI ? 1 : 0} ${dirn > 0 ? 0 : 1} ${pp(A1)}"
+              fill="none" stroke="${col}" stroke-width="2"/>` +
+      arrow(ex - tx * 9, ey - ty * 9, ex, ey, col, 2, 9, 4.5) +
+      text(cx + lr * Math.cos(am), oy - lr * Math.sin(am) + ly, label, { fill: col, size: 12, bold: true });
+  };
+  const rA = Math.max(R * k * 0.45, 26);
+  o += g(10, line(X(c), oy, X(m.p1), oy, green, 2.6) +
+             arc(m.phi, m.phi + m.twoP, rA, green, `2θp = ${fa(Math.abs(m.twoP))}° ${m.twoP >= 0 ? 'ccw' : 'cw'}`));
+  // joint
+  if (level >= 11) {
+    o += g(11, arc(m.phi, m.aJ, Math.max(R * k * 0.7, 40), purple, `2θ = ${fa(2 * m.ja)}° ${m.jsg > 0 ? 'ccw' : 'cw'}`) +
+               line(X(c), oy, X(m.Jn), Y(m.Jt), purple, 2.4) +
+               `<circle cx="${X(m.Jn)}" cy="${Y(m.Jt)}" r="6.5" fill="${purple}" stroke="#fff" stroke-width="1.5"/>`);
+  }
+  // points on top
+  const pt = (px, py, col, lab) => {
+    const ux = px - X(c), uy = py - oy, L = Math.hypot(ux, uy) || 1;
+    return `<circle cx="${px}" cy="${py}" r="6.5" fill="${col}" stroke="#fff" stroke-width="1.5"/>` +
+      text(px + ux / L * 30, py + uy / L * 20 + (Math.abs(uy) < 1 ? -16 : 0), lab, { fill: col, bold: true, size: 13 });
+  };
+  o += g(4, pt(X(V[0]), Y(V[1]), blue, `V(${fmt(V[0])}, ${fmt(V[1])})`) + pt(X(Hh[0]), Y(Hh[1]), red, `H(${fmt(Hh[0])}, ${fmt(Hh[1])})`));
+  if (level >= 11) o += g(11, pt(X(m.Jn), Y(m.Jt), purple, `J(${fmt(m.Jn)}, ${fmt(m.Jt)})`));
+  svg.innerHTML = o; FS = 1;
+}
+
+/* ================= element ================= */
+function elementSVG(m, deg, kind) {
+  const s = stateAt(m, deg), str = m.isStrain;
+  const W = 340, cx = W / 2, cy = W / 2, h = 50, L = 42;
+  const a = deg * D2R, ca = Math.cos(a), sa = Math.sin(a);
+  const P = (x, y) => [cx + x * ca - y * sa, cy - (x * sa + y * ca)];
+  const poly = (pts, attrs) => `<polygon points="${pts.map(p => P(...p).join(',')).join(' ')}" ${attrs}/>`;
+  const blue = '#1f6feb', red = '#d1344a', orange = '#e08a00', grey = '#8a93a3';
+  const lab = (x, y, t, col, sz = 13) => { const [px, py] = P(x, y); return text(px, py, t, { fill: col, bold: true, size: sz }); };
+  const sq = [[-h, -h], [h, -h], [h, h], [-h, h]];
+  let o = '';
+  o += arrow(16, W - 18, 50, W - 18, grey, 1.2) + arrow(16, W - 18, 16, W - 52, grey, 1.2);
+  o += text(58, W - 18, 'x', { size: 11, fill: grey }) + text(16, W - 60, 'y', { size: 11, fill: grey });
+  if (Math.abs(deg) > 1e-6) {
+    // reference x axis and rotated x' axis with angle arc
+    o += line(cx, cy, cx + h + 70, cy, grey, 1, 'stroke-dasharray="3 3"');
+    const r = h + 58, A = a;
+    const [ex, ey] = [cx + r * Math.cos(A), cy - r * Math.sin(A)];
+    o += line(cx, cy, ex, ey, kind === 'j' ? '#8e44ad' : '#1a8f5a', 1.4, 'stroke-dasharray="5 3"');
+    o += `<path d="M ${cx + r} ${cy} A ${r} ${r} 0 0 ${A > 0 ? 0 : 1} ${ex} ${ey}" fill="none" stroke="${grey}" stroke-width="1.2"/>`;
+    o += Math.abs(deg) < 25
+      ? text(cx + r + 6, cy + (A > 0 ? 14 : -14), `${fa(Math.abs(deg))}°`, { size: 11, fill: '#5b6475', bold: true, anchor: 'start' })
+      : text(cx + (r + 14) * Math.cos(A / 2), cy - (r + 14) * Math.sin(A / 2), `${fa(Math.abs(deg))}°`, { size: 11, fill: '#5b6475', bold: true });
+  }
+  o += poly(sq, `fill="#eef2f8" stroke="#1d2330" stroke-width="1.6"`);
+  const nL = str ? ['εx′', 'εy′'] : ['σx′', 'σy′'];
+  const names = deg === 0 ? (str ? ['εx', 'εy'] : ['σx', 'σy']) : kind === 'p' ? (str ? ['ε₁', 'ε₂'] : ['σ₁', 'σ₂']) : nL;
+
+  if (!str) {
+    const nrm = (sig, nx, ny) => {
+      if (Math.abs(sig) < 1e-9) return '';
+      const f = [nx * h, ny * h], tip = [nx * (h + L), ny * (h + L)];
+      const [p0, p1] = sig > 0 ? [f, tip] : [tip, f];
+      return arrow(...P(...p0), ...P(...p1), blue);
+    };
+    o += nrm(s.n1, 1, 0) + nrm(s.n1, -1, 0) + nrm(s.n2, 0, 1) + nrm(s.n2, 0, -1);
+    o += lab(h + L + 30, 0, `${names[0]} = ${fmt(s.n1)}`, blue);
+    o += lab(0, h + L + 14, `${names[1]} = ${fmt(s.n2)}`, blue);
+    if (Math.abs(s.t) > 1e-6 * Math.max(1, m.R)) {
+      const sg = Math.sign(s.t), q = 24, off = h + 10;
+      const sh = (x0, y0, dx, dy) => arrow(...P(x0 - dx * q, y0 - dy * q), ...P(x0 + dx * q, y0 + dy * q), red, 2);
+      o += sh(off, 0, 0, -sg) + sh(-off, 0, 0, sg) + sh(0, off, -sg, 0) + sh(0, -off, sg, 0);
+      o += lab(-h - 26, -h - 26, `τ = ${fmt(Math.abs(s.t))}`, red, 12);
+      o += lab(-h - 26, -h - 42, s.t > 0 ? '(clockwise on V)' : '(anticlockwise on V)', red, 10);
+    }
+  } else {
+    const big = Math.max(Math.abs(m.c) + m.R, 2 * m.R, 1e-12), k = 0.16 / big, dl = s.t * k;
+    const def = ([x, y]) => [x * (1 + s.n1 * k) - y * dl, y * (1 + s.n2 * k) - x * dl];
+    o += poly(sq.map(def), `fill="none" stroke="${orange}" stroke-width="2.2" stroke-dasharray="6 4"`);
+    const dbl = (nx, ny, v) => {
+      if (Math.abs(v) < 1e-9) return '';
+      const a0 = [nx * (h + 8), ny * (h + 8)], a1 = [nx * (h + 34), ny * (h + 34)];
+      return v > 0 ? arrow(...P(...a0), ...P(...a1), blue, 2) : arrow(...P(...a1), ...P(...a0), blue, 2);
+    };
+    o += dbl(1, 0, s.n1) + dbl(-1, 0, s.n1) + dbl(0, 1, s.n2) + dbl(0, -1, s.n2);
+    o += lab(h + L + 30, 0, `${names[0]} = ${fmt(s.n1)}`, blue);
+    o += lab(0, h + L + 14, `${names[1]} = ${fmt(s.n2)}`, blue);
+    if (Math.abs(s.t) > 1e-6 * Math.max(1, m.R)) o += lab(-h - 22, -h - 30, `γ = ${fmt(2 * s.t)}`, red, 12);
+  }
+  return `<svg viewBox="0 0 ${W} ${W}">${o}</svg>`;
+}
+
+function drawElement(m, step) {
+  const str = m.isStrain;
+  let deg = 0, kind = 0, title = str ? 'Strain element (x–y axes)' : 'Stress element (x–y axes)', note;
+  if (step.el === 'p') {
+    deg = m.thP; kind = 'p';
+    title = str ? 'Principal strain directions' : 'Principal stress element';
+    note = `Element rotated ${fa(Math.abs(m.thP))}° ${sgnWord(m.thP)} from x — no shear acts on these faces.`;
+  } else if (step.el === 'j') {
+    deg = m.jsg * m.ja; kind = 'j';
+    title = str ? 'Element at the chosen direction' : 'Element at the chosen plane';
+    note = `Element rotated ${fa(m.ja)}° ${m.jsg > 0 ? 'counter-clockwise' : 'clockwise'}; its right-hand face is the chosen plane (point J).`;
+  } else {
+    note = str
+      ? 'Grey square: original element. Orange dashed: deformed shape (hugely exaggerated). Blue arrows: extension (out) or contraction (in).'
+      : 'Blue arrows: normal stress (pointing out = tension). Red arrows: shear stress.';
+  }
+  $('elTitle').textContent = title;
+  $('element').innerHTML = elementSVG(m, deg, kind);
+  $('elNote').textContent = note;
+}
+
+/* ================= data card ================= */
+function renderData() {
+  const M = MODES[S.mode], I = S.inp, u = M.u;
+  const exs = M.examples.map((e, i) => `<button type="button" data-ex="${i}" class="${S.ex === i ? 'on' : ''}">${e.label}</button>`).join('') +
+    `<button type="button" data-ex="-1" class="${S.ex === -1 ? 'on' : ''}">My own values</button>`;
+  let fields;
+  if (S.mode === 'stress') {
+    fields = `<div class="row">
+      <label>σ<sub>x</sub> (${u})<input type="number" step="any" data-k="x" value="${I.x}"></label>
+      <label>σ<sub>y</sub> (${u})<input type="number" step="any" data-k="y" value="${I.y}"></label>
+      <label>τ<sub>xy</sub> (${u}, cw +)<input type="number" step="any" data-k="s" value="${I.s}"></label></div>
+      <p class="hint">τ<sub>xy</sub> is the shear on the vertical faces: <b>+</b> if clockwise, <b>−</b> if anticlockwise.</p>`;
+  } else {
+    fields = `<div class="seg"><button type="button" data-src="direct" class="${I.src !== 'rosette' ? 'on' : ''}">ε<sub>x</sub>, ε<sub>y</sub>, γ<sub>xy</sub></button>
+      <button type="button" data-src="rosette" class="${I.src === 'rosette' ? 'on' : ''}">0°/45°/90° rosette</button></div>` +
+      (I.src === 'rosette'
+        ? `<div class="row">
+          <label>ε<sub>a</sub> at 0° (${u})<input type="number" step="any" data-k="ra" value="${I.ra}"></label>
+          <label>ε<sub>b</sub> at 45° (${u})<input type="number" step="any" data-k="rb" value="${I.rb}"></label>
+          <label>ε<sub>c</sub> at 90° (${u})<input type="number" step="any" data-k="rc" value="${I.rc}"></label></div>
+          <p class="hint">Gauge b is 45° counter-clockwise from gauge a (the x axis).</p>`
+        : `<div class="row">
+          <label>ε<sub>x</sub> (${u})<input type="number" step="any" data-k="x" value="${I.x}"></label>
+          <label>ε<sub>y</sub> (${u})<input type="number" step="any" data-k="y" value="${I.y}"></label>
+          <label>γ<sub>xy</sub> (${u}, cw +)<input type="number" step="any" data-k="s" value="${I.s}"></label></div>
+          <p class="hint">γ<sub>xy</sub> positive = clockwise (same sense as positive τ<sub>xy</sub>).</p>`);
+  }
+  $('dataCard').innerHTML = `<h2>Given data</h2><div class="exs">${exs}</div>${fields}`;
+  $('dataCard').querySelectorAll('[data-ex]').forEach(b => b.onclick = () => {
+    const i = +b.dataset.ex; S.ex = i;
+    if (i >= 0) loadExample(M.examples[i]);
+    resetAnswers(); renderData(); render();
+  });
+  $('dataCard').querySelectorAll('[data-src]').forEach(b => b.onclick = () => {
+    S.inp.src = b.dataset.src; S.ex = -1;
+    if (S.inp.src === 'rosette' && S.inp.ra === undefined) Object.assign(S.inp, { ra: 500, rb: 300, rc: -100 });
+    resetAnswers(); renderData(); render();
+  });
+  $('dataCard').querySelectorAll('input[data-k]').forEach(inp => inp.addEventListener('input', () => {
+    S.inp[inp.dataset.k] = inp.value; S.ex = -1;
+    $('dataCard').querySelectorAll('[data-ex]').forEach(b => b.classList.toggle('on', b.dataset.ex === '-1'));
+    resetAnswers(); render();
+  }));
+}
+function loadExample(e) {
+  const base = S.mode === 'strain' ? { src: 'direct', x: 0, y: 0, s: 0, ra: 0, rb: 0, rc: 0 } : { x: 0, y: 0, s: 0 };
+  S.inp = Object.assign(base, e);
+  if (e.src === 'rosette') { S.inp.x = e.ra; S.inp.y = e.rc; S.inp.s = e.ra + e.rc - 2 * e.rb; }
+}
+function resetAnswers() { S.ans = {}; S.work = {}; }
+
+/* ================= step rendering ================= */
+let STEPS = [];
+function render() {
+  const m = model();
+  STEPS = buildSteps(m);
+  S.step = Math.max(0, Math.min(S.step, STEPS.length - 1));
+  const st = STEPS[S.step];
+
+  // stepper
+  $('stepper').innerHTML = STEPS.map((s, i) => {
+    const done = s.checks.length && s.checks.every(c => S.ans[s.key + '.' + c.k]?.ok);
+    return `<button type="button" data-i="${i}" class="${i === S.step ? 'cur' : ''} ${done ? 'done' : ''}">${i + 1}. ${s.short}${done ? ' ✓' : ''}</button>`;
+  }).join('');
+  $('stepper').querySelectorAll('button').forEach(b => b.onclick = () => go(+b.dataset.i));
+  $('bar').style.width = `${(S.step + 1) / STEPS.length * 100}%`;
+
+  // step card
+  const checks = st.checks.map(c => {
+    const a = S.ans[st.key + '.' + c.k] || {};
+    const input = c.type === 'choice'
+      ? `<select data-c="${c.k}"><option value="">— choose —</option>${c.opts.map(o => `<option ${a.v === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`
+      : `<input type="text" inputmode="decimal" data-c="${c.k}" value="${a.v ?? ''}" placeholder="${c.unit}" style="width:100%;padding:6px 8px;font:inherit;border:1px solid var(--line);border-radius:6px">`;
+    const fb = a.ok === undefined ? '<div class="fb"></div>'
+      : `<div class="fb ${a.ok ? 'ok' : 'bad'}">${a.ok ? '✓ Correct — well done!' : '✗ Not quite. Hint: ' + c.hint}</div>`;
+    return `<div class="chk ${c.type === 'choice' ? 'choice-q' : ''}"><span class="q">${c.q}${c.type === 'val' ? ` <span class="hint">(${c.unit})</span>` : ''}</span>
+      ${input}<button type="button" data-check="${c.k}">Check</button>${fb}</div>`;
+  }).join('');
+  const nOk = st.checks.filter(c => S.ans[st.key + '.' + c.k]?.ok).length;
+  $('stepCard').innerHTML = `
+    <div class="stepno">Step ${S.step + 1} of ${STEPS.length}</div>
+    <h2>${st.title}</h2>
+    ${st.body}
+    ${st.checks.length ? `<div class="checks"><h3>Check yourself</h3>${checks}
+      ${st.checks.some(c => c.type === 'val') ? '<p class="hint">Numerical answers within about 2% are accepted (graphical accuracy).</p>' : ''}</div>` : ''}
+    ${st.work ? `<button type="button" id="workBtn" style="margin-top:10px">${S.work[st.key] ? 'Hide working' : 'Show working'}</button>
+      <div class="work ${S.work[st.key] ? 'show' : ''}">${st.work}</div>` : ''}
+    <div class="nav">
+      <button type="button" id="prev" ${S.step === 0 ? 'disabled' : ''}>&larr; Back</button>
+      <span class="grow"></span>
+      ${st.checks.length ? `<span class="score">${nOk}/${st.checks.length} checked</span>` : ''}
+      <button type="button" class="primary" id="next" ${S.step === STEPS.length - 1 ? 'disabled' : ''}>Next step &rarr;</button>
+    </div>`;
+  $('prev').onclick = () => go(S.step - 1);
+  $('next').onclick = () => go(S.step + 1);
+  if ($('workBtn')) $('workBtn').onclick = () => { S.work[st.key] = !S.work[st.key]; render(); };
+  $('stepCard').querySelectorAll('[data-check]').forEach(b => b.onclick = () => checkAnswer(st, b.dataset.check));
+  $('stepCard').querySelectorAll('input[data-c]').forEach(i => i.addEventListener('keydown', e => {
+    if (e.key === 'Enter') checkAnswer(st, i.dataset.c);
+  }));
+  if ($('jA')) {
+    const upd = () => {
+      S.joint = { a: $('jA').value, dir: $('jD').value };
+      Object.keys(S.ans).forEach(k => { if (k.startsWith('plane.')) delete S.ans[k]; });
+      render();
+    };
+    $('jA').addEventListener('change', upd); $('jD').addEventListener('change', upd);
+  }
+  if ($('otherMode')) $('otherMode').onclick = e => { e.preventDefault(); start(S.mode === 'stress' ? 'strain' : 'stress'); };
+
+  // diagram
+  $('circleTitle').textContent = `Mohr's circle — step ${S.step + 1}`;
+  $('newNote').textContent = NEW_NOTE[st.level];
+  $('scaleNote').innerHTML = st.level >= 3
+    ? `Grid: 1 square = <b>${fmt(m.scale, 3)} ${MODES[S.mode].u}</b> (suggested 1 cm on paper). ` +
+      (m.isStrain ? 'Vertical axis is <b>γ/2</b>.' : 'Shear plotted upward is clockwise.')
+    : '';
+  drawMohr(m, st.level);
+  drawElement(m, st);
+}
+
+function checkAnswer(st, k) {
+  const c = st.checks.find(x => x.k === k), el = $('stepCard').querySelector(`[data-c="${k}"]`);
+  let v = el.value, ok;
+  if (c.type === 'choice') ok = v === c.v;
+  else {
+    const n = parseFloat(String(v).replace(/−/g, '-').replace(/,/g, ''));
+    ok = isFinite(n) && Math.abs(n - c.v) <= c.tol;
+  }
+  if (v === '') { ok = undefined; }
+  S.ans[st.key + '.' + k] = { v, ok };
+  const y = window.scrollY; render(); window.scrollTo(0, y);
+  const again = $('stepCard').querySelector(`[data-c="${k}"]`); if (again && ok === false) again.focus();
+}
+
+function go(i) {
+  if (i < 0 || i >= STEPS.length) return;
+  S.step = i; render();
+  if (window.innerWidth < 900) $('stepCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function start(mode) {
+  S.mode = mode; S.step = 0; S.ex = 0; resetAnswers();
+  S.joint = mode === 'stress' ? { a: 30, dir: 'ccw' } : { a: 30, dir: 'ccw' };
+  loadExample(MODES[mode].examples[0]);
+  $('home').hidden = true; $('lesson').hidden = false;
+  $('modeBadge').textContent = MODES[mode].title;
+  $('switchMode').textContent = `Switch to ${mode === 'stress' ? 'strain' : 'stress'}`;
+  try { history.replaceState(null, '', '#' + mode); } catch (e) {}
+  renderData(); render(); window.scrollTo(0, 0);
+}
+function home() {
+  S.mode = null; $('lesson').hidden = true; $('home').hidden = false;
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+}
+
+document.querySelectorAll('.choice').forEach(b => b.onclick = () => start(b.dataset.mode));
+$('goHome').onclick = home;
+$('switchMode').onclick = () => start(S.mode === 'stress' ? 'strain' : 'stress');
+document.addEventListener('keydown', e => {
+  if (!S.mode || /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName)) return;
+  if (e.key === 'ArrowRight') go(S.step + 1);
+  if (e.key === 'ArrowLeft') go(S.step - 1);
+});
+let lastW = window.innerWidth;   // redraw only on width change (mobile keyboards fire height-only resizes)
+window.addEventListener('resize', () => {
+  if (window.innerWidth === lastW) return; lastW = window.innerWidth;
+  if (S.mode) drawMohr(model(), STEPS[S.step].level);
+});
+if (location.hash === '#stress' || location.hash === '#strain') start(location.hash.slice(1));
+</script>
+</body>
+</html>
