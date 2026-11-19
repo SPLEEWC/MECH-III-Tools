@@ -1,11 +1,31 @@
-# Mohr's Circle – 2D Plane Stress
+# MECH III Tools
 
-Interactive single-page tool (plain HTML/JS, no build step).
+Interactive single-page tools (plain HTML/JS, no build step).
+
+| Page | Tool |
+| --- | --- |
+| `index.html` | Home page linking to the tools |
+| `stress.html` | Mohr's circle for 2D plane **stress** |
+| `strain.html` | Mohr's circle for 2D plane **strain** |
+| `mohr-tutor.html` | Step-by-step **tutor** for drawing Mohr's circle (stress or strain) |
+
+## Mohr's circle – stress
 
 - Input the **V** (vertical face) and **H** (horizontal face) coordinates (σ, τ).
 - Draws Mohr's circle, principal stresses and max shear.
-- Shows 2D plane stress elements (at 0°) with normal stresses and strains.
-- Input E and ν to get ε, γ. **Shear stress and shear strain are positive clockwise.**
+- Shows 2D plane stress elements with normal stresses and strains.
+- Input E and ν to get ε, γ.
+
+## Mohr's circle – strain
+
+- Choose a strain rosette (**Rectangle** 0°/45°/90°, **Delta** triangle 0°/60°/120°, **Star** one vertical gauge and the others 120° apart: 90°/210°/330°) and enter gauge strains ε1, ε2, ε3 in µε.
+- For Delta and Star rosettes you can choose which gauge is vertical (or keep the original orientation); the rosette diagram shows the original beside the rotated one, and the McClintock construction uses that gauge's vertical line for the pole.
+- The circle is built step by step with **McClintock's construction** (gauge lines → arbitrary point O → lines at the gauge spacing to A and C → circle through A, O, C → ε axis through its centre → read results).
+- εx, εy, γxy and the V/H points are derived from the three readings; the gauges are marked on the circle.
+- Draws Mohr's circle, principal strains and max shear strain.
+- Gives the corresponding stresses from E and ν (plane stress).
+
+**Shear stress and shear strain are positive clockwise** in both tools.
 
 ## Mohr's Circle Tutor (`mohr-tutor.html`)
 
